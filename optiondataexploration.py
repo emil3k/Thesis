@@ -22,10 +22,10 @@ def trimToStartDate(OptionData, startDate):
     OptionData  = OptionData.iloc[startInd:, :]
     return OptionData
 
-startDate   = 20000101
-OptionData  = trimToStartDate(OptionData, startDate)
-
+#startDate   = 20180101
+#OptionData  = trimToStartDate(OptionData, startDate)
 print(OptionData.head())
+
 datesSeries = SpotData["Dates"]
 datesTime   = pd.to_datetime(datesSeries, format = '%d.%m.%Y')
 dayCount    = bt.dayCount(datesTime) #get ndays between dates
@@ -95,7 +95,7 @@ if np.sum(np.in1d(UniqueDates, UnderlyingDates)) != np.size(UniqueDates):
 #Trim Data from underlying to match that of the option data
 keepIndex = (np.in1d(UnderlyingDatesAll, UniqueDates) == 1) #Dates where option data is recorded
 UnderlyingDates  = UnderlyingDatesAll[keepIndex] #Keep underlying dates and prices where matching options
-UNderlyingPrices = UnderlyingPricesAll[keepIndex]
+UnderlyingPrices = UnderlyingPricesAll[keepIndex]
 
 
 #Check Dates
@@ -137,129 +137,68 @@ bid   = OptionData["best_bid"].to_numpy()
 offer = OptionData["best_offer"].to_numpy()
 mid_price = (bid + offer) / 2
 
-#Spot Price and OTM Flag
+## Attach Spot price to option data
+## Obtain OTM and ATM Flags
 #Grab data necessary
 OptionStrikes = OptionDataTr[:, 3]
 CallFlag      = OptionDataTr[:, 2]
 ForwardPrice  = OptionDataTr[:, 14]
 
 #Initialize
-OTM_forward_flag = np.zeros((1, 1))
-OTM_flag         = np.zeros((1, 1))
 UnderlyingVec    = np.zeros((1, 1))
-
 for i in np.arange(0, nDays):
-    CurrentDate       = UnderlyingDates[i] #Grab current date
-    CurrentUnderlying = UnderlyingPrices[i] #Grab underlying price    
-
-    isRightDate   = (CurrentDate == OptionDates)  #right date boolean
-    Strikes       = OptionStrikes[isRightDate]    #Grab strikes for right date
-    Flag          = CallFlag[isRightDate]         #Grab call_flag for right date
-    Forward       = ForwardPrice[isRightDate]     #Grab forward price for right date
-    
-    nStrikes         = np.size(Strikes)  
-    Underlying_dummy = CurrentUnderlying * np.ones((nStrikes, 1)) #vector of underlying
-    
-    #Spot OTM
-    CallOTM  = (Flag == 1) * (CurrentUnderlying < Strikes) #OTM dummy for calls
-    PutOTM   = (Flag == 0) * (CurrentUnderlying > Strikes) #OTM dummy for puts
-    OTM_dummy = CallOTM + PutOTM                           #combine to make OTM dummy for both calls and puts
+    CurrentDate       = UnderlyingDates[i]            #Grab current date
+    CurrentUnderlying = UnderlyingPrices[i]           #Grab underlying price    
+    isRightDate       = (CurrentDate == OptionDates)  #right date boolean
+    Strikes           = OptionStrikes[isRightDate]    #Grab strikes for right date
+  
+    nStrikes          = np.size(Strikes)  
+    Underlying_dummy  = CurrentUnderlying * np.ones((nStrikes, 1)) #vector of underlying
    
-    #Forward OTM
-    CallOTM_forward = (Flag == 1)*(Forward < Strikes)      #OTM dummy for calls
-    PutOTM_forward  = (Flag == 0)*(Forward > Strikes)      #OTM dummy for puts
-    OTM_forward_dummy = CallOTM_forward + PutOTM_forward   #Combine
-    
-    #Stack flags and underlying for each date on top of eachother
-    OTM_flag         = np.concatenate((OTM_flag, OTM_dummy.reshape(nStrikes, 1)), axis = 0)
-    OTM_forward_flag = np.concatenate((OTM_forward_flag, OTM_forward_dummy.reshape(nStrikes, 1)), axis = 0)
-    UnderlyingVec    = np.concatenate((UnderlyingVec, Underlying_dummy), axis = 0)    
+    UnderlyingVec     = np.concatenate((UnderlyingVec, Underlying_dummy), axis = 0)    
+
 
 #Delete initialization value
-OTM_flag         = OTM_flag[1:]
-OTM_forward_flag = OTM_forward_flag[1:]
 UnderlyingVec    = UnderlyingVec[1:]
 
-#Add to option data
-OptionDataTr         = np.concatenate((OptionDataTr, mid_price.reshape(nObs, 1), eur_flag.reshape(nObs, 1), OTM_forward_flag, OTM_flag, UnderlyingVec ), axis = 1)   
+#Define OTM and ATM from moneyness
+def computeMoneynessFlag(Strike, Spot, CallFlag, level):
+    nObs = np.size(Strike)
+    upper = 1 + level
+    lower = 1 - level
+    
+    Moneyness = Spot / Strike
+    CallOTM    = CallFlag * (Moneyness < lower)
+    PutOTM     = (1 - CallFlag) * (Moneyness > upper)
+    OTM_flag   = CallOTM + PutOTM
+    ATM_flag   = (Moneyness > lower)*(Moneyness < upper)*1    
+    
+    return OTM_flag.reshape(nObs, 1), ATM_flag.reshape(nObs, 1)    
+    
+[OTM_flag, ATM_flag]   = computeMoneynessFlag(OptionStrikes, UnderlyingVec.reshape(nObs,), CallFlag, 0.05)
+[OTMF_flag, ATMF_flag] = computeMoneynessFlag(OptionStrikes, ForwardPrice, CallFlag, 0.05)
+
+OptionDataTr         = np.concatenate((OptionDataTr, mid_price.reshape(nObs, 1), eur_flag.reshape(nObs, 1), OTMF_flag, OTM_flag, UnderlyingVec, ATMF_flag, ATM_flag), axis = 1)  
 AmericanOptionDataTr = OptionDataTr[~eur_flag, :]        #Store American Option Data separately
 OptionDataTr         = OptionDataTr[eur_flag, :]         #Keep only European Options
 OptionDataToTrade    = OptionDataTr[OptionsToTrade, :]   #Options To Trade
 
-#Add ATM Flag for options to trade
-nTradedOptions    = np.size(OptionDataToTrade, 0)
-isFirstExpiration = np.zeros((nTradedOptions, 1))
-isLastExpiration  = np.zeros((nTradedOptions, 1))
-Expirations       = OptionDataToTrade[:, 1]
 
-for i in np.arange(0, nTradedOptions - 1):
-    if (Expirations[i] != Expirations[i + 1]):
-        isFirstExpiration[i + 1] = 1
-        isLastExpiration[i] = 1
-    
-isFirstExpiration[0] = 1
-isLastExpiration[-1] = 1
 
-FirstExpList = np.nonzero(isFirstExpiration)
-LastExpList  = np.nonzero(isLastExpiration)
-FirstExpList = FirstExpList[0]
-LastExpList  = LastExpList[0]
+#colsFull = np.array(["date", "exdate", "cp_flag", "strike_price", "best_bid", "best_offer", "volume", \
+#                       "open_interest", "impl_volatility", "delta", "gamma",  "vega", "theta", "contract_size", \
+#                           "forward_price", "mid_price", "european_flag", "OTM_forward_flag", "OTM_flag", "spot_price"])
 
-nExpirations     = np.size(FirstExpList)
-ATMF_flag = np.zeros((1, 1))
-ATM_flag         = np.zeros((1, 1))   
-
-for i in np.arange(0, nExpirations):
-    start = FirstExpList[i]
-    stop  = LastExpList[i]
-    
-    #Grab needed batches from option data to trade
-    Flag    = OptionDataToTrade[start:stop + 1, 2]   #Grab Call Flag
-    Strikes = OptionDataToTrade[start:stop + 1, 3]   #Grab strikes
-    Forward = OptionDataToTrade[start:stop + 1, 14]  #Grab forward
-    Spot    = OptionDataToTrade[start:stop + 1, 19]  #Grab Spot
-    nStrikes = np.size(Strikes)
-    
-    diff_forward  = np.abs(Forward - Strikes)
-    diff_spot     = np.abs(Spot - Strikes)
-    
-    #Split by call and put
-    #Call
-    diff_forward_call = diff_forward[(Flag == 1)]
-    diff_spot_call    = diff_spot[(Flag == 1)]
-    ATMF_call         = (diff_forward_call == np.min(diff_forward_call))
-    ATM_call          = (diff_spot_call == np.min(diff_spot_call))
-    
-    #Put
-    diff_forward_put  = diff_forward[(Flag == 0)]
-    diff_spot_put     = diff_spot[(Flag == 0)]
-    ATMF_put          = (diff_forward_put == np.min(diff_forward_put))
-    ATM_put           = (diff_spot_put == np.min(diff_spot_put))
-    
-    ATMF_dummy = np.concatenate((ATMF_call, ATMF_put), axis = 0).reshape(nStrikes, 1)
-    ATM_dummy  = np.concatenate((ATM_call, ATM_put), axis = 0).reshape(nStrikes, 1)
-    
-    ATMF_flag = np.concatenate((ATMF_flag, ATMF_dummy), axis = 0)
-    ATM_flag  = np.concatenate((ATM_flag, ATM_dummy), axis = 0)
-    
-
-ATMF_flag = ATMF_flag[1:]
-ATM_flag  = ATM_flag[1:]    
-    
-colsFull = np.array(["date", "exdate", "cp_flag", "strike_price", "best_bid", "best_offer", "volume", \
-                       "open_interest", "impl_volatility", "delta", "gamma",  "vega", "theta", "contract_size", \
-                           "forward_price", "mid_price", "european_flag", "OTM_forward_flag", "OTM_flag", "spot_price"])
-
-colsToTrade = np.array(["date", "exdate", "cp_flag", "strike_price", "best_bid", "best_offer", "volume", \
+cols  = np.array(["date", "exdate", "cp_flag", "strike_price", "best_bid", "best_offer", "volume", \
                        "open_interest", "impl_volatility", "delta", "gamma",  "vega", "theta", "contract_size", \
                            "forward_price", "mid_price", "european_flag", "OTM_forward_flag", "OTM_flag", "spot_price", "ATMF_flag", "ATM_flag"])
 
-OptionDataToTrade  = np.concatenate((OptionDataToTrade, ATMF_flag, ATM_flag), axis = 1)    
+
 UnderlyingData     = np.concatenate((UnderlyingDatesAll.reshape(np.size(UnderlyingDatesAll), 1), UnderlyingPricesAll.reshape(np.size(UnderlyingPricesAll), 1)), axis = 1)
 
-OptionDataClean         = pd.DataFrame.from_records(OptionDataTr, columns = colsFull)
-AmericanOptionDataClean = pd.DataFrame.from_records(AmericanOptionDataTr, columns = colsFull)
-OptionDataToTrade       = pd.DataFrame.from_records(OptionDataToTrade, columns = colsToTrade)    
+OptionDataClean         = pd.DataFrame.from_records(OptionDataTr, columns = cols)
+AmericanOptionDataClean = pd.DataFrame.from_records(AmericanOptionDataTr, columns = cols)
+OptionDataToTrade       = pd.DataFrame.from_records(OptionDataToTrade, columns = cols)    
 UnderlyingData          = pd.DataFrame.from_records(UnderlyingData, columns = ["Dates", "Price"])
 
 toc = time.time()
