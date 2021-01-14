@@ -204,3 +204,13 @@ UnderlyingData          = pd.DataFrame.from_records(UnderlyingData, columns = ["
 toc = time.time()
 
 print (toc-tic)
+
+#Save as csv file
+OptionDataClean.to_csv(path_or_buf = r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXOptionDataClean.csv', index = False)
+OptionDataToTrade.to_csv(path_or_buf = r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXOptionDataToTrade.csv', index = False)
+UnderlyingData.to_csv(path_or_buf = r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXUnderlyingData.csv', index = False)
+
+
+
+
+
