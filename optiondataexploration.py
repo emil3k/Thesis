@@ -15,16 +15,27 @@ import sys
 OptionData = pd.read_csv(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\OptionData\SPXOptionData2.csv")
 SpotData   = pd.read_excel(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\SpotData\SPXSPYData.xlsx", "Prices")
 
-def trimToStartDate(OptionData, startDate):
+def trimToDates(OptionData, startDate, endDate):
     optionDates = OptionData["date"].to_numpy()
     startInd    = np.nonzero(optionDates > startDate)[0]
     startInd    = startInd[0]
-    OptionData  = OptionData.iloc[startInd:, :]
+    endInd      = np.nonzero(optionDates > endDate)[0]
+    endInd      = endInd[0]    
+    OptionData  = OptionData.iloc[startInd:endInd, :]
     return OptionData
 
 #startDate   = 20180101
-#OptionData  = trimToStartDate(OptionData, startDate)
+#endDate     = 20181001
+#tt  = trimToDates(OptionData, startDate, endDate)
+
+#startDate   = 19960101
+#endDate     = 20000101
+#OptionData  = trimToDates(OptionData, startDate, endDate)
+
+
 print(OptionData.head())
+print(OptionData.tail())
+
 
 datesSeries = SpotData["Dates"]
 datesTime   = pd.to_datetime(datesSeries, format = '%d.%m.%Y')
@@ -46,10 +57,28 @@ ColsForTrade = np.array(["am_settlement", "ss_flag", "expiry_indicator", "index_
 #Grab and store needed option data
 OptionDates      = OptionData["date"].to_numpy()           #Grab option dates
 UniqueDates      = np.unique(OptionDates)                  #Grab unique option dates
-ExpirationDates  = OptionData["exdate"].to_numpy()         #Grab expiration dates
-OptionData["cp_flag"] = (OptionData["cp_flag"] == "C") * 1 #Transform flag to numeric
-OptionData["best_bid"] = OptionData["best_bid"] / OptionData["contract_size"]
-OptionData["best_offer"] = OptionData["best_offer"] / OptionData["contract_size"]
+
+#Amend saturday expiration
+ExpDates     = OptionData["exdate"]                        #Grab expiration dates
+ExpDates_dt  = pd.to_datetime(ExpDates, format = '%Y%m%d') #Datetime 
+ExpDayOfWeek = ExpDates_dt.dt.dayofweek                    #Grab day of week number
+ExpDates     = ExpDates.to_numpy()                         
+ExpDayOfWeek = ExpDayOfWeek.to_numpy()                    
+isSaturday   = (ExpDayOfWeek == 5)*1                                      #Identify saturday expiration (Sat = day 5)
+
+ExpDatesAmended      = isSaturday * (ExpDates - 1) + \
+                       (1 - isSaturday)*ExpDates                          #Lag saturday expirations
+OptionData["exdate"] = ExpDatesAmended                                    #Replace saturday exp with friday exp for consistency
+
+
+OptionData["cp_flag"] = (OptionData["cp_flag"] == "C") * 1                        #Transform flag to numeric
+OptionData["best_bid"] = OptionData["best_bid"] / OptionData["contract_size"]     #adjust bid
+OptionData["best_offer"] = OptionData["best_offer"] / OptionData["contract_size"] #adjust ask
+
+#Sort data to get consistency: by Data, Exdate, cp_flag, strike
+OptionData = OptionData.sort_values(["date", "exdate", "cp_flag", "strike_price"], ascending = (True, True, False, True))
+
+#Trim data
 OptionDataTr     = OptionData[ColsToKeep].to_numpy()       #Extract columns that should be kept as is
 OptionDataTr[:, 3] = OptionDataTr[:, 3] / 1000             #Adjust strike price by dividing by 1000
 nDays = np.size(UniqueDates)
@@ -175,8 +204,8 @@ def computeMoneynessFlag(Strike, Spot, CallFlag, level):
     
     return OTM_flag.reshape(nObs, 1), ATM_flag.reshape(nObs, 1)    
     
-[OTM_flag, ATM_flag]   = computeMoneynessFlag(OptionStrikes, UnderlyingVec.reshape(nObs,), CallFlag, 0.05)
-[OTMF_flag, ATMF_flag] = computeMoneynessFlag(OptionStrikes, ForwardPrice, CallFlag, 0.05)
+[OTM_flag, ATM_flag]   = computeMoneynessFlag(OptionStrikes, UnderlyingVec.reshape(nObs,), CallFlag, 0.01)
+[OTMF_flag, ATMF_flag] = computeMoneynessFlag(OptionStrikes, ForwardPrice, CallFlag, 0.01)
 
 OptionDataTr         = np.concatenate((OptionDataTr, mid_price.reshape(nObs, 1), eur_flag.reshape(nObs, 1), OTMF_flag, OTM_flag, UnderlyingVec, ATMF_flag, ATM_flag), axis = 1)  
 AmericanOptionDataTr = OptionDataTr[~eur_flag, :]        #Store American Option Data separately
@@ -205,6 +234,8 @@ toc = time.time()
 
 print (toc-tic)
 
+
+
 #Save as csv file
 OptionDataClean.to_csv(path_or_buf = r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXOptionDataClean.csv', index = False)
 OptionDataToTrade.to_csv(path_or_buf = r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXOptionDataToTrade.csv', index = False)
@@ -213,4 +244,4 @@ UnderlyingData.to_csv(path_or_buf = r'C:\Users\ekblo\Documents\MScQF\Masters The
 
 
 
-
+    
