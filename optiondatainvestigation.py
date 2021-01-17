@@ -7,14 +7,16 @@ Created on Sun Jan 17 11:19:09 2021
 import numpy as np
 import pandas as pd
 import Backtest as bt
+import matplotlib.pyplot as plt
 import sys
 
 ## Option Data Investigation
 OptionData        = pd.read_csv(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXOptionDataClean.csv")
 OptionDataToTrade = pd.read_csv(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXOptionDataToTrade.csv")
 UnderlyingData    = pd.read_csv(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXUnderlyingData.csv")
+UnderlyingAssetName = "S&P 500 Index"
 
-startDate = 20180101
+startDate = 19960102
 endDate   = 20200101
 
 OptionData  = bt.trimToDates(OptionData, OptionData["date"], startDate, endDate)
@@ -37,8 +39,8 @@ OptionDataTr  = OptionData.loc[non_violating, :]
 #Underlying data
 UnderlyingDates  = UnderlyingDataTr["Dates"].to_numpy()
 UnderlyingPrices = UnderlyingDataTr["Price"].to_numpy()
-UnderlyingDates  = UnderlyingDates[1:]
-UnderlyingPrices = UnderlyingPrices[1:]
+#UnderlyingDates  = UnderlyingDates[1:]
+#UnderlyingPrices = UnderlyingPrices[1:]
 
 #Option Dates
 OptionDates      = OptionDataTr["date"].to_numpy()
@@ -108,13 +110,35 @@ date_shift = np.concatenate((date_bool[1:], np.ones((1,))), axis = 0) == 1
 
 syncMat[date_bool, :] = aggregateData
 syncMat[(date_bool == 0), 1:] = syncMat[(date_shift == 0), 1:]    
-syncMat[(date_bool == 0), 0] = UnderlyingDates[(date_bool == 0)]     
-    
+syncMat[(date_bool == 0), 0]  = UnderlyingDates[(date_bool == 0)]     
 aggregateData = syncMat #overwrite    
 
-    
 
-    
+returns = np.concatenate((np.zeros((1,)), UnderlyingPrices[1:] / UnderlyingPrices[0:-1] - 1), axis = 0)
+dates4fig = pd.to_datetime(aggregateData[:, 0], format = '%Y%m%d')
+
+
+#Gamma Exposure Plot
+lag = 1 
+plt.figure()
+plt.scatter(aggregateData[0:-lag, 1], np.abs(returns[lag:]), color = "blue", s = 3)
+plt.title("Gamma Exposure vs Absolute Returns, Lag = " + str(lag) + " Day(s)")
+plt.xlabel("Market Maker Net Gamma Exposure")
+plt.ylabel("Absolute Returns")
+
+
+#Open Interest
+plt.figure()
+plt.plot(dates4fig, aggregateData[:, 3], label = "Aggregate Open Interest")
+plt.title("Aggregate Open Interest, " + str(UnderlyingAssetName) + " Options")
+plt.ylabel("Net Daily Open Interest")
+
+
+#Delta Adjusted Volume
+plt.figure()
+plt.plot(dates4fig, aggregateData[:, -1], label = "Delta Adjusted Volume")
+plt.title("Delta Adjusted Volume, " + str(UnderlyingAssetName) + " Options")
+plt.ylabel("Delta Adjusted Volume ($)")
     
     
     
