@@ -44,7 +44,6 @@ dayCount    = bt.dayCount(datesTime) #get ndays between dates
 UnderlyingDates  = bt.yyyymmdd(datesTime) #get desired date format
 UnderlyingPrices = SpotData["SPX Index"].to_numpy()
 
-#[OptionDataClean, OptionDataToTrade, AmericanOptionDataClean, UnderlyingData] = bt.CleanOptionData(OptionData, UnderlyingDates, UnderlyingPrices)
 
 tic = time.time()
 #Clean Option Data
