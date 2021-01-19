@@ -14,7 +14,8 @@ import sys
 OptionData        = pd.read_csv(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXOptionDataClean.csv")
 OptionDataToTrade = pd.read_csv(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXOptionDataToTrade.csv")
 UnderlyingData    = pd.read_csv(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXUnderlyingData.csv")
-UnderlyingAssetName = "S&P 500 Index"
+UnderlyingAssetName   = "S&P 500 Index"
+UnderlyingAssetTicker = "SPX"
 
 startDate = 19960102
 endDate   = 20200101
@@ -39,8 +40,6 @@ OptionDataTr  = OptionData.loc[non_violating, :]
 #Underlying data
 UnderlyingDates  = UnderlyingDataTr["Dates"].to_numpy()
 UnderlyingPrices = UnderlyingDataTr["Price"].to_numpy()
-#UnderlyingDates  = UnderlyingDates[1:]
-#UnderlyingPrices = UnderlyingPrices[1:]
 
 #Option Dates
 OptionDates      = OptionDataTr["date"].to_numpy()
@@ -113,11 +112,25 @@ syncMat[(date_bool == 0), 1:] = syncMat[(date_shift == 0), 1:]
 syncMat[(date_bool == 0), 0]  = UnderlyingDates[(date_bool == 0)]     
 aggregateData = syncMat #overwrite    
 
+#transfrom to datafram
+cols        = np.array(["Dates", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume"])
+aggregateDf =  pd.DataFrame.from_records(OptionDataTr, columns = cols)
 
+#export to excel
+path = r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data" + UnderlyingAssetTicker + "AggregateData.csv"
+#aggregateDf.to_csv(path_or_buf = path, index = False)
+
+sys.exit()
 returns = np.concatenate((np.zeros((1,)), UnderlyingPrices[1:] / UnderlyingPrices[0:-1] - 1), axis = 0)
 dates4fig = pd.to_datetime(aggregateData[:, 0], format = '%Y%m%d')
 
 
+
+##Smooth aggragate data
+
+
+##################################
+# Plots #
 #Gamma Exposure Plot
 lag = 1 
 plt.figure()
@@ -125,6 +138,22 @@ plt.scatter(aggregateData[0:-lag, 1], np.abs(returns[lag:]), color = "blue", s =
 plt.title("Gamma Exposure vs Absolute Returns, Lag = " + str(lag) + " Day(s)")
 plt.xlabel("Market Maker Net Gamma Exposure")
 plt.ylabel("Absolute Returns")
+
+lag = 1 
+plt.figure()
+plt.scatter(aggregateData[0:-lag, 1], returns[lag:], color = "blue", s = 3)
+plt.title("Gamma Exposure vs Underlying Returns, Lag = " + str(lag) + " Day(s)")
+plt.xlabel("Market Maker Net Gamma Exposure")
+plt.ylabel("Underlying Returns")
+
+lag = 1 
+plt.figure()
+plt.scatter(aggregateData[0:-lag, 1], returns[lag:]**2, color = "blue", s = 3)
+plt.title("Gamma Exposure vs Underlying Squared Returns, Lag = " + str(lag) + " Day(s)")
+plt.xlabel("Market Maker Net Gamma Exposure")
+plt.ylabel("Squared Returns")
+
+
 
 
 #Open Interest

@@ -19,6 +19,22 @@ dayCount    = bt.dayCount(datesTime) #get ndays between dates
 UnderlyingDates  = bt.yyyymmdd(datesTime) #get desired date format
 UnderlyingPrices = SpotData["NDX Index"].to_numpy()
 
+def trimToDates(OptionData, startDate, endDate):
+    optionDates = OptionData["date"].to_numpy()
+    startInd    = np.nonzero(optionDates > startDate)[0]
+    startInd    = startInd[0]
+    endInd      = np.nonzero(optionDates > endDate)[0]
+    endInd      = endInd[0]    
+    OptionData  = OptionData.iloc[startInd:endInd, :]
+    return OptionData
+
+#startDate   = 20180101
+#endDate     = 20181001
+#tt  = trimToDates(OptionData, startDate, endDate)
+
+startDate   = 19960101
+endDate     = 19970101
+OptionData  = trimToDates(OptionData, startDate, endDate)
 
 
 def CleanOptionData(OptionData, UnderlyingDates, UnderlyingPrices):
@@ -37,6 +53,10 @@ def CleanOptionData(OptionData, UnderlyingDates, UnderlyingPrices):
     OptionData["cp_flag"] = (OptionData["cp_flag"] == "C") * 1 #Transform flag to numeric
     OptionData["best_bid"] = OptionData["best_bid"] / OptionData["contract_size"]
     OptionData["best_offer"] = OptionData["best_offer"] / OptionData["contract_size"]
+    
+    #Sort data to get consistency: by Data, Exdate, cp_flag, strike
+    OptionData = OptionData.sort_values(["date", "exdate", "cp_flag", "strike_price"], ascending = (True, True, False, True))
+    
     OptionDataTr     = OptionData[ColsToKeep].to_numpy()       #Extract columns that should be kept as is
     OptionDataTr[:, 3] = OptionDataTr[:, 3] / 1000             #Adjust strike price by dividing by 1000
     
@@ -204,7 +224,7 @@ def CleanOptionData(OptionData, UnderlyingDates, UnderlyingPrices):
         
 
 #[test1, test2, test3] = CleanOptionData(OptionData, UnderlyingDates, UnderlyingPrices)
-[Option, ToTrade, American, Underlying] = bt.CleanOptionData(OptionData, UnderlyingDates, UnderlyingPrices)
+[Option, ToTrade, American, Underlying] = CleanOptionData(OptionData, UnderlyingDates, UnderlyingPrices)
 
 
 
