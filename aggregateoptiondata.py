@@ -40,6 +40,7 @@ OptionDataTr  = OptionData.loc[non_violating, :]
 #Underlying data
 UnderlyingDates  = UnderlyingDataTr["Dates"].to_numpy()
 UnderlyingPrices = UnderlyingDataTr["Price"].to_numpy()
+UnderlyingVolume = UnderlyingDataTr["Volume"].to_numpy()
 
 #Option Dates
 OptionDates      = OptionDataTr["date"].to_numpy()
@@ -109,11 +110,15 @@ date_shift = np.concatenate((date_bool[1:], np.ones((1,))), axis = 0) == 1
 
 syncMat[date_bool, :] = aggregateData
 syncMat[(date_bool == 0), 1:] = syncMat[(date_shift == 0), 1:]    
-syncMat[(date_bool == 0), 0]  = UnderlyingDates[(date_bool == 0)]     
-aggregateData = np.concatenate((syncMat, UnderlyingPrices.reshape(nRows, 1)), axis = 1) #overwrite    
+syncMat[(date_bool == 0), 0]  = UnderlyingDates[(date_bool == 0)]
+UnderlyingDollarVolume  = UnderlyingPrices * UnderlyingVolume     
+aggregateData = np.concatenate((syncMat, UnderlyingPrices.reshape(nRows, 1),\
+                                UnderlyingVolume.reshape(nRows, 1), UnderlyingDollarVolume.reshape(nRows, 1)), axis = 1) #add price and volume    
 
 #transfrom to datafram
-cols        = np.array(["Dates", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingAssetTicker])
+cols        = np.array(["Dates", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
+                        "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingAssetTicker, UnderlyingAssetTicker + " Volume",\
+                            UnderlyingAssetTicker + " Dollar Volume"])
 aggregateDf =  pd.DataFrame.from_records(aggregateData, columns = cols)
 
 #export to excel
