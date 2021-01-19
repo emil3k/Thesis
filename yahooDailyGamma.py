@@ -9,11 +9,7 @@ import numpy as np
 import yfinance as yf
 import datetime
 from scipy.stats import norm
-
-
-
-
-
+np.seterr(divide='ignore', invalid='ignore')
 
 #Get Option Chain From Yahoo Finance
 def getOptionChain(symbol):
@@ -49,7 +45,7 @@ def getOptionChain(symbol):
     IV      = options["impliedVolatility"].to_numpy()
     T       = options["dte"].to_numpy()
     
-    d1 = (np.log(S/K) + (rf + IV**2/2)*T)/ (IV*np.sqrt(T))
+    d1 = (np.log(S/K) + (rf + IV**2/2)*T) / (IV*np.sqrt(T))
     
     delta_call = np.exp(-divYield*T) * norm.cdf(d1)
     delta_put  = np.exp(-divYield*T) * delta_call - 1
@@ -92,3 +88,6 @@ def computeNetGammaExposure(optionChain):
 yahoo_ticker = "SPY"
 chain        = getOptionChain(yahoo_ticker)
 netGamma     = computeNetGammaExposure(chain)
+today        = datetime.date.today()
+
+print("Market Maker Net Gamma Before Open", today, ":",  netGamma)
