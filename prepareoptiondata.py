@@ -14,6 +14,8 @@ import sys
 
 OptionData = pd.read_csv(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\OptionData\SPXOptionData2.csv")
 SpotData   = pd.read_excel(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\SpotData\SPXSPYData.xlsx", "Prices")
+VolumeData = pd.read_excel(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\SpotData\SPXSPYData.xlsx", "Volume")
+
 
 def trimToDates(OptionData, startDate, endDate):
     optionDates = OptionData["date"].to_numpy()
@@ -43,7 +45,7 @@ dayCount    = bt.dayCount(datesTime) #get ndays between dates
 
 UnderlyingDates  = bt.yyyymmdd(datesTime) #get desired date format
 UnderlyingPrices = SpotData["SPX Index"].to_numpy()
-
+UnderlyingVolume = VolumeData["SPX Index"].to_numpy() 
 
 tic = time.time()
 #Clean Option Data
@@ -114,7 +116,7 @@ EndInd   = int(EndInd)
 #Store and return as "All" for return and sync with gamma exposure later
 UnderlyingDatesAll  = UnderlyingDates[StartInd:EndInd + 1]
 UnderlyingPricesAll = UnderlyingPrices[StartInd:EndInd + 1]
-
+UnderlyingVolumeAll = UnderlyingVolume[StartInd:EndInd + 1]
 
 #Check if all Option Dates are in Underlying Sample
 if np.sum(np.in1d(UniqueDates, UnderlyingDates)) != np.size(UniqueDates):
@@ -222,12 +224,13 @@ cols  = np.array(["date", "exdate", "cp_flag", "strike_price", "best_bid", "best
                            "forward_price", "mid_price", "european_flag", "OTM_forward_flag", "OTM_flag", "spot_price", "ATMF_flag", "ATM_flag"])
 
 
-UnderlyingData     = np.concatenate((UnderlyingDatesAll.reshape(np.size(UnderlyingDatesAll), 1), UnderlyingPricesAll.reshape(np.size(UnderlyingPricesAll), 1)), axis = 1)
+UnderlyingData     = np.concatenate((UnderlyingDatesAll.reshape(np.size(UnderlyingDatesAll), 1), UnderlyingPricesAll.reshape(np.size(UnderlyingPricesAll), 1),\
+                                     UnderlyingVolumeAll.reshape(np.size(UnderlyingVolumeAll), 1)), axis = 1)
 
 OptionDataClean         = pd.DataFrame.from_records(OptionDataTr, columns = cols)
 AmericanOptionDataClean = pd.DataFrame.from_records(AmericanOptionDataTr, columns = cols)
 OptionDataToTrade       = pd.DataFrame.from_records(OptionDataToTrade, columns = cols)    
-UnderlyingData          = pd.DataFrame.from_records(UnderlyingData, columns = ["Dates", "Price"])
+UnderlyingData          = pd.DataFrame.from_records(UnderlyingData, columns = ["Dates", "Price", "Volume"])
 
 toc = time.time()
 
