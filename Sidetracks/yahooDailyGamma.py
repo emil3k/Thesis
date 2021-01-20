@@ -93,10 +93,10 @@ def computeNetGammaExposure(optionChain):
 
 yahoo_ticker = "SPY"
 options      = getOptionChain(yahoo_ticker)
-#netGamma     = computeNetGammaExposure(options)
+netGamma     = computeNetGammaExposure(options)
 today        = datetime.date.today()
 
-#print("Market Maker Net Gamma Before Open", today, ":",  netGamma)
+print("Market Maker Net Gamma Before Open", today, ":",  netGamma)
 
 
 #Plot IV surface
