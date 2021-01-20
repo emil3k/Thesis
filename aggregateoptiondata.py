@@ -10,13 +10,23 @@ import Backtest as bt
 import matplotlib.pyplot as plt
 import sys
 
-## Option Data Investigation
-OptionData        = pd.read_csv(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXOptionDataClean.csv")
-OptionDataToTrade = pd.read_csv(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXOptionDataToTrade.csv")
-UnderlyingData    = pd.read_csv(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXUnderlyingData.csv")
-UnderlyingAssetName   = "S&P 500 Index"
-UnderlyingAssetTicker = "SPX"
+## Aggregate Option Data to daily series
 
+### SET WHICH ASSET TO BE IMPORTED #######################################################
+UnderlyingAssetName   = "SPDR S&P 500 Index ETF"
+UnderlyingTicker      = "SPY"
+loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/CleanData/"
+##########################################################################################
+
+#Load data
+OptionData        = pd.read_csv(loadloc + UnderlyingTicker + "OptionDataClean.csv")
+UnderlyingData    = pd.read_csv(loadloc + UnderlyingTicker + "UnderlyingData.csv")
+
+#OptionData        = pd.read_csv(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXOptionDataClean.csv")
+#OptionDataToTrade = pd.read_csv(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXOptionDataToTrade.csv")
+#UnderlyingData    = pd.read_csv(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXUnderlyingData.csv")
+
+#Trim Data
 startDate = 19960102
 endDate   = 20200101
 
@@ -28,9 +38,9 @@ UnderlyingDataTr = bt.trimToDates(UnderlyingData, UnderlyingData["Dates"], start
 print(UnderlyingData.head())
 print(UnderlyingData.tail())
 
-OptionDataToTrade = bt.trimToDates(OptionDataToTrade, OptionDataToTrade["date"], startDate, endDate)
-print(OptionDataToTrade.head())
-print(OptionDataToTrade.tail())
+
+
+## Compute and aggregate data ##
 
 #Delete options that violate arbitrage bounds
 gamma         = OptionData["gamma"].to_numpy()
@@ -117,22 +127,24 @@ aggregateData = np.concatenate((syncMat, UnderlyingPrices.reshape(nRows, 1),\
 
 #transfrom to datafram
 cols        = np.array(["Dates", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
-                        "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingAssetTicker, UnderlyingAssetTicker + " Volume",\
-                            UnderlyingAssetTicker + " Dollar Volume"])
+                        "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingTicker, UnderlyingTicker + " Volume",\
+                            UnderlyingTicker + " Dollar Volume"])
 aggregateDf =  pd.DataFrame.from_records(aggregateData, columns = cols)
 
-#export to excel
-aggregateDf.to_csv(path_or_buf = r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\AggregateData\SPXAggregateData.csv" , index = False)
+
+## EXPORT DATA TO EXCEL ##
+saveloc = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
+aggregateDf.to_csv(path_or_buf = saveloc + UnderlyingTicker + "AggregateData.csv" , index = False)
+
+
+
 
 
 sys.exit()
+
+
 returns = np.concatenate((np.zeros((1,)), UnderlyingPrices[1:] / UnderlyingPrices[0:-1] - 1), axis = 0)
 dates4fig = pd.to_datetime(aggregateData[:, 0], format = '%Y%m%d')
-
-
-
-##Smooth aggragate data
-
 
 ##################################
 # Plots #
