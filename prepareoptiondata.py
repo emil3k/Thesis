@@ -12,40 +12,39 @@ import Backtest as bt
 import time
 import sys
 
-OptionData = pd.read_csv(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\OptionData\SPXOptionData2.csv")
-SpotData   = pd.read_excel(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\SpotData\SPXSPYData.xlsx", "Prices")
-VolumeData = pd.read_excel(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\SpotData\SPXSPYData.xlsx", "Volume")
+### SET WHICH ASSET TO BE IMPORTED #######################################################
+UnderlyingTicker      = "VIX Index"
+UnderlyingTickerShort = "VIX"
+loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/"
+##########################################################################################
 
+#Load data
+OptionData  = pd.read_csv(loadloc + "OptionData/" + UnderlyingTickerShort + "OptionData.csv")
+SpotData    = pd.read_excel(loadloc + "SpotData/SpotData.xlsx", sheet_name = "Price")
+VolumeData  = pd.read_excel(loadloc + "SpotData/SpotData.xlsx", sheet_name = "Volume")
 
-def trimToDates(OptionData, startDate, endDate):
-    optionDates = OptionData["date"].to_numpy()
-    startInd    = np.nonzero(optionDates > startDate)[0]
-    startInd    = startInd[0]
-    endInd      = np.nonzero(optionDates > endDate)[0]
-    endInd      = endInd[0]    
-    OptionData  = OptionData.iloc[startInd:endInd, :]
-    return OptionData
+#Grab data from right underlying
+SpotData   = SpotData[["Dates", UnderlyingTicker]]
+VolumeData = VolumeData[["Dates", UnderlyingTicker]]
 
-#startDate   = 20180101
-#endDate     = 20181001
-#tt  = trimToDates(OptionData, startDate, endDate)
-
-#startDate   = 19960101
-#endDate     = 20000101
-#OptionData  = trimToDates(OptionData, startDate, endDate)
+#To be fixed when spot data is downloaded properly
+#SpotData   = pd.read_excel(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\SpotData\SPXSPYData.xlsx", "Prices")
+#VolumeData = pd.read_excel(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\SpotData\SPXSPYData.xlsx", "Volume")
 
 
 print(OptionData.head())
 print(OptionData.tail())
 
 
+sys.exit()
+
 datesSeries = SpotData["Dates"]
 datesTime   = pd.to_datetime(datesSeries, format = '%d.%m.%Y')
 dayCount    = bt.dayCount(datesTime) #get ndays between dates
 
 UnderlyingDates  = bt.yyyymmdd(datesTime) #get desired date format
-UnderlyingPrices = SpotData["SPX Index"].to_numpy()
-UnderlyingVolume = VolumeData["SPX Index"].to_numpy() 
+UnderlyingPrices = SpotData[UnderlyingTicker].to_numpy()
+UnderlyingVolume = VolumeData[UnderlyingTicker].to_numpy() 
 
 tic = time.time()
 #Clean Option Data
@@ -210,8 +209,10 @@ def computeMoneynessFlag(Strike, Spot, CallFlag, level):
 
 OptionDataTr         = np.concatenate((OptionDataTr, mid_price.reshape(nObs, 1), eur_flag.reshape(nObs, 1), OTMF_flag, OTM_flag, UnderlyingVec, ATMF_flag, ATM_flag), axis = 1)  
 AmericanOptionDataTr = OptionDataTr[~eur_flag, :]        #Store American Option Data separately
-OptionDataTr         = OptionDataTr[eur_flag, :]         #Keep only European Options
-OptionDataToTrade    = OptionDataTr[OptionsToTrade, :]   #Options To Trade
+
+if np.sum(eur_flag) > 0:
+    OptionDataTr         = OptionDataTr[eur_flag, :]         #Keep only European Options
+    OptionDataToTrade    = OptionDataTr[OptionsToTrade, :]   #Options To Trade
 
 
 
@@ -229,19 +230,30 @@ UnderlyingData     = np.concatenate((UnderlyingDatesAll.reshape(np.size(Underlyi
 
 OptionDataClean         = pd.DataFrame.from_records(OptionDataTr, columns = cols)
 AmericanOptionDataClean = pd.DataFrame.from_records(AmericanOptionDataTr, columns = cols)
-OptionDataToTrade       = pd.DataFrame.from_records(OptionDataToTrade, columns = cols)    
 UnderlyingData          = pd.DataFrame.from_records(UnderlyingData, columns = ["Dates", "Price", "Volume"])
 
 toc = time.time()
-
 print (toc-tic)
 
-
-
 #Save as csv file
-OptionDataClean.to_csv(path_or_buf = r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXOptionDataClean.csv', index = False)
-OptionDataToTrade.to_csv(path_or_buf = r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXOptionDataToTrade.csv', index = False)
-UnderlyingData.to_csv(path_or_buf = r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXUnderlyingData.csv', index = False)
+loc = "C:/Users/ekblo/Documents/MScQf/Masters Thesis/Data/CleanData/"
+OptionDataClean.to_csv(path_or_buf   = loc + UnderlyingTickerShort + 'OptionDataClean.csv', index = False)
+AmericanOptionDataClean.to_csv(path_or_buf   = loc + UnderlyingTickerShort + 'AmericanOptionDataClean.csv', index = False)
+UnderlyingData.to_csv(path_or_buf    = loc + UnderlyingTickerShort + 'UnderlyingData.csv', index = False)
+
+#Print option data to trade if it exists
+if 'OptionDataToTrade' in locals():
+    OptionDataToTrade       = pd.DataFrame.from_records(OptionDataToTrade, columns = cols)    
+    OptionDataToTrade.to_csv(path_or_buf = loc + UnderlyingTickerShort + 'OptionDataToTrade.csv', index = False)
+
+
+
+
+#OptionDataClean.to_csv(path_or_buf = r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXOptionDataClean.csv', index = False)
+#OptionDataToTrade.to_csv(path_or_buf = r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXOptionDataToTrade.csv', index = False)
+#UnderlyingData.to_csv(path_or_buf = r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXUnderlyingData.csv', index = False)
+
+
 
 
 
