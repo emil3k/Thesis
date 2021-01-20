@@ -35,3 +35,33 @@ Download the following fields for a full optiond data set
 - Highest Closing Bid
 - Lowest Closing Ask
 
+Complete list (in order) of fields for option download
+After clearing all from default selected (22 fields):
+- Exercise Style
+- Call/Put Flag
+- Last Traded Date
+- Open Interest
+- Settlement Flag
+- Expiration Date
+- AM Settlement Flag
+- Am Settlement
+- Contract Size
+- Expiry Indicator
+- Security ID
+- Index Flag
+- Highest Closing Bid
+- Lowest Closing Ask
+- Volume
+- Strike Price Times 1000
+- Forward Price
+- Implied Volatility
+- Delta
+- Gamma
+- Theta
+- Vega/Kappa
+
+Download as csv and zip.
+
+
+
+
