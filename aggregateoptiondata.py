@@ -13,8 +13,8 @@ import sys
 ## Aggregate Option Data to daily series
 
 ### SET WHICH ASSET TO BE IMPORTED #######################################################
-UnderlyingAssetName   = "SPDR S&P 500 Index ETF"
-UnderlyingTicker      = "SPY"
+UnderlyingAssetName   = "VIX Index"
+UnderlyingTicker      = "VIX"
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/CleanData/"
 ##########################################################################################
 
@@ -22,9 +22,6 @@ loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/Clea
 OptionData        = pd.read_csv(loadloc + UnderlyingTicker + "OptionDataClean.csv")
 UnderlyingData    = pd.read_csv(loadloc + UnderlyingTicker + "UnderlyingData.csv")
 
-#OptionData        = pd.read_csv(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXOptionDataClean.csv")
-#OptionDataToTrade = pd.read_csv(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXOptionDataToTrade.csv")
-#UnderlyingData    = pd.read_csv(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXUnderlyingData.csv")
 
 #Trim Data
 startDate = 19960102
