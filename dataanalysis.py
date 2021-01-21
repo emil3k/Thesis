@@ -8,22 +8,37 @@ import numpy as np
 import pandas as pd
 import Backtest as bt
 import matplotlib.pyplot as plt
+import statsmodels.api as sm
 import sys
 
 ### SET WHICH ASSET TO BE IMPORTED #######################################################
-UnderlyingAssetName   = "SPDR S&P 500 Index ETF"
+UnderlyingAssetName   = "SPY Index"
 UnderlyingTicker      = "SPY"
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
+prefColor             = '#0504aa'
 ##########################################################################################
 
 #Load data
 data    = pd.read_csv(loadloc + UnderlyingTicker + "AggregateData.csv") #assetdata
-SPXData = pd.read_csv(loadloc + "SPXAggregateData.csv")              #SPX data for reference
+SPXData = pd.read_csv(loadloc + "SPXAggregateData.csv")                 #SPX data for reference
 
 dates            = data["Dates"].to_numpy()
 dates4fig        = pd.to_datetime(dates, format = '%Y%m%d')
 UnderlyingPrice  = data[UnderlyingTicker].to_numpy()
 nDays            = np.size(dates)
+
+#Grab futures returns and dates if underlying is VIX
+if UnderlyingTicker == "VIX":
+    futPrices  = pd.read_excel(r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\FuturesData\VIXFuturesData.xlsx', sheet_name = "Prices")
+    futDates   = futPrices["Dates"]
+    futDates   = pd.to_datetime(futDates, '%Y-%m-%d')
+    futDates   = bt.yyyymmdd(futDates)
+    
+    futPrices    = bt.trimToDates(futPrices, futDates, dates[0], dates[-1] + 1)
+    futPrices    = futPrices.iloc[:, 1:].to_numpy()
+    futXsReturns = futPrices[1:, :] / futPrices[0:-1, :] - 1
+    futXsReturns = np.concatenate((np.zeros((1, np.size(futXsReturns, 1))), futXsReturns), axis = 0)
+    frontXsReturns = futXsReturns[:, 0]
 
 #trim SPX data to match underlying
 startDate = dates[0]
@@ -31,22 +46,124 @@ endDate   = dates[-1] + 1
 SPXDataTr = bt.trimToDates(SPXData, SPXData["Dates"], startDate, endDate)
 SPXPrice  = SPXDataTr["SPX"].to_numpy()
 
+
 #Compute Returns
-Returns    = UnderlyingPrice[1:] / UnderlyingPrice[0:-1] - 1
-Returns    = np.concatenate((np.zeros((1,)), Returns), axis = 0) #add zero return for day 1
+if UnderlyingTicker == "VIX":
+    Returns = frontXsReturns
+else:
+    Returns    = UnderlyingPrice[1:] / UnderlyingPrice[0:-1] - 1
+    Returns    = np.concatenate((np.zeros((1,)), Returns), axis = 0) #add zero return for day 1
+
 SPXReturns = SPXPrice[1:] / SPXPrice[0:-1] - 1
 SPXReturns = np.concatenate((np.zeros((1,)), SPXReturns), axis = 0) #add zero return for day 1
 
 #Extract net gamma
-netGamma     = data["netGamma"].to_numpy()
-netGamma_alt = data["netGamma_alt"].to_numpy()
-netGammaSPX  = SPXDataTr["netGamma"].to_numpy()
+netGamma        = data["netGamma"].to_numpy()
+netGamma_alt    = data["netGamma_alt"].to_numpy()
+netGammaSPXTr   = SPXDataTr["netGamma"].to_numpy()
+netGammaSPX     = SPXData["netGamma"].to_numpy()
+
+#Investigate proporties of gamma
+def computeNegGammaStreaks(netGamma):
+    nDays  = np.size(netGamma)
+    streak = 0
+    negGammaStreaks = []    
+    for i in np.arange(0, nDays):
+        if netGamma[i] < 0: #Start new streak
+           streak = streak + 1
+        elif streak > 0:
+           negGammaStreaks.append(streak)
+           streak = 0 #reset streak
+       
+    negGammaStreaks = np.transpose(np.array([negGammaStreaks]))
+    return negGammaStreaks
+def computeGammaStats(netGamma):    
+    nDays = np.size(netGamma)
+    negGammaStreaks    = computeNegGammaStreaks(netGamma)
+    avgStreakLength    = np.round(np.mean(negGammaStreaks), decimals = 2)
+    nDaysNegative      = np.sum(netGamma < 0)
+    nDaysPositive      = np.sum(netGamma > 0)
+    negGammaFraction   = np.round(nDaysNegative / nDays, decimals = 2)
+    avgNetGamma        = np.round(np.mean(netGamma)/1000, decimals = 2)
+    
+    legend = np.array(["Total No. of Days", "No. of Negative Net Gamma Days", "No. of Positive Net Gamma Days", "Negative Net Gamma Fraction", "Average Net Gamma Exposure (1000s)", "Average Cond. Neg. Gamma Streak"])
+    netGammaStats = np.array([nDays, nDaysNegative, nDaysPositive, negGammaFraction, avgNetGamma, avgStreakLength])
+    return legend, netGammaStats
+    
+[legend, gammaStats]    = computeGammaStats(netGamma)
+[legend, gammaStatsSPX] = computeGammaStats(netGammaSPX)
+
+#Store in dataframe
+gammaStatsDf = pd.DataFrame()
+gammaStatsDf["Statistics"]       = legend
+gammaStatsDf[UnderlyingTicker]   = gammaStats
+gammaStatsDf["SPX"]              = gammaStatsSPX
+
+
+
+sys.exit()
+
+
+#Histogram of netGamma
+#Underlying Asset
+plt.figure()
+n, bins, patches = plt.hist(x = netGamma, bins='auto', color=prefColor, histtype = "stepfilled")
+plt.xlabel('MM Net Gamma Exposure')
+plt.ylabel('# of Days')
+plt.title('MM Net Gamma Exposure Distribution for ' + UnderlyingTicker)
+maxfreq = n.max()
+
+#SPX
+plt.figure()
+n, bins, patches = plt.hist(x = netGammaSPX, bins='auto', color="red", alpha=0.7)
+plt.xlabel('MM Net Gamma Exposure')
+plt.ylabel('# of Days')
+plt.title('MM Net Gamma Exposure Distribution for SPX')
+maxfreq = n.max()
+
+#Streaks
+plt.figure()
+n, bins, patches = plt.hist(x = negGammaStreaks, bins='auto', color=prefColor)
+plt.xlabel('Streak Size')
+plt.ylabel('# of Days')
+plt.title('Streaks of Negative Gamma Exposure (# of Days)')
+maxfreq = n.max()
+
+#Streaks
+plt.figure()
+n, bins, patches = plt.hist(x = negGammaStreaksSPX, bins='auto', color="red", alpha = 0.7)
+plt.xlabel('Streak Size')
+plt.ylabel('# of Days')
+plt.title('Streaks of Negative Gamma Exposure (# of Days)')
+plt.xlim([0, 70])
+maxfreq = n.max()
+
+
+sys.exit()
+
+# #Set up Regression
+lag = 1
+# X   = netGamma[0:-lag]
+# X   = sm.add_constant(X)
+# y   = np.abs(Returns[lag:])
+
+# regression = sm.OLS(y, X).fit()
+# print(regression.summary())
+
+
+
+
+
+
+
+
+
 
 #Normalize Price Series
 netGamma_norm    = (netGamma - np.mean(netGamma)) / np.std(netGamma)
-netGammaSPX_norm = (netGammaSPX - np.mean(netGammaSPX)) / np.std(netGammaSPX)
+netGammaSPX_norm = (netGammaSPXTr - np.mean(netGammaSPXTr)) / np.std(netGammaSPXTr)
 
-dataToSmooth  = np.concatenate((netGamma.reshape(nDays, 1), netGammaSPX.reshape(nDays, 1),\
+dataToSmooth  = np.concatenate((netGamma.reshape(nDays, 1), netGammaSPXTr.reshape(nDays, 1),\
                 netGamma_norm.reshape(nDays, 1), netGammaSPX_norm.reshape(nDays, 1)  ), axis = 1)
 
 def smoothData(dataToSmooth, dates, lookback):
@@ -87,14 +204,20 @@ plt.title("MM Net Gamma Exposure for " + UnderlyingTicker + " and SPX")
 plt.ylabel("Net Gamma Exposure")
 plt.legend()
 
-
 ## Scatter plot
-lag = 1
 plt.figure()
 plt.scatter(netGamma[0:-lag], Returns[lag:], color = "blue", s = 0.7)
 plt.title("Returns vs Gamma for " + UnderlyingTicker + ", lag = " + str(lag) + " day")
 plt.ylabel(UnderlyingTicker + " Returns")
 plt.xlabel("Market Maker Net Gamma Exposure")
+plt.legend()
+
+## Scatter plot
+plt.figure()
+plt.scatter(netGammaSPX[0:-lag], Returns[lag:], color = "blue", s = 0.7)
+plt.title("Returns vs MM net Gamma for SPX, lag = " + str(lag) + " day")
+plt.ylabel(UnderlyingTicker + " Futures Returns")
+plt.xlabel("Market Maker Net SPX Gamma Exposure")
 plt.legend()
 
 
@@ -158,7 +281,7 @@ def plotBucketStats(netGamma, Returns, lag, nBuckets):
     return bucketMeans, bucketAbsMeans, bucketStd
 
 #plot Buckets
-[bMeans, bAbsMeans, bStd] = plotBucketStats(netGamma, Returns, lag = 10, nBuckets = 6)
+[bMeans, bAbsMeans, bStd] = plotBucketStats(netGamma, Returns, lag = 1, nBuckets = 6)
 
 
 ## Open Interest and Volume Investigation
@@ -180,6 +303,16 @@ plt.title(str(lookback) + "-day MA Volume for " + UnderlyingTicker + " and "+ Un
 plt.ylabel("Volume (log scale)")
 plt.legend()
 plt.yscale("log")
+
+#Plots
+plt.figure()
+plt.plot(smoothDates, aggregateSmooth[:, 2] / 1000000,color = "blue", label = "Delta Adjusted Open Interest")
+#plt.plot(smoothDates, aggregateSmooth[:, -2]/ 1000000, color = "black", label = "Volume " + UnderlyingTicker)
+plt.title(str(lookback) + "-day MA Delta Adj. Open Interest for "+ UnderlyingTicker + " Options")
+plt.ylabel("Delta Adj. Open Interest (in Millions)")
+plt.legend()
+#plt.yscale("log")
+
 
 
 
