@@ -27,16 +27,10 @@ VolumeData  = pd.read_excel(loadloc + "SpotData/SpotData.xlsx", sheet_name = "Vo
 SpotData   = SpotData[["Dates", UnderlyingTicker]]
 VolumeData = VolumeData[["Dates", UnderlyingTicker]]
 
-#To be fixed when spot data is downloaded properly
-#SpotData   = pd.read_excel(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\SpotData\SPXSPYData.xlsx", "Prices")
-#VolumeData = pd.read_excel(r"C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\SpotData\SPXSPYData.xlsx", "Volume")
-
 
 print(OptionData.head())
 print(OptionData.tail())
 
-
-sys.exit()
 
 datesSeries = SpotData["Dates"]
 datesTime   = pd.to_datetime(datesSeries, format = '%d.%m.%Y')
@@ -216,9 +210,8 @@ if np.sum(eur_flag) > 0:
 
 
 
-#colsFull = np.array(["date", "exdate", "cp_flag", "strike_price", "best_bid", "best_offer", "volume", \
-#                       "open_interest", "impl_volatility", "delta", "gamma",  "vega", "theta", "contract_size", \
-#                           "forward_price", "mid_price", "european_flag", "OTM_forward_flag", "OTM_flag", "spot_price"])
+######################################################################################
+## Save Data
 
 cols  = np.array(["date", "exdate", "cp_flag", "strike_price", "best_bid", "best_offer", "volume", \
                        "open_interest", "impl_volatility", "delta", "gamma",  "vega", "theta", "contract_size", \
@@ -229,22 +222,34 @@ UnderlyingData     = np.concatenate((UnderlyingDatesAll.reshape(np.size(Underlyi
                                      UnderlyingVolumeAll.reshape(np.size(UnderlyingVolumeAll), 1)), axis = 1)
 
 OptionDataClean         = pd.DataFrame.from_records(OptionDataTr, columns = cols)
-AmericanOptionDataClean = pd.DataFrame.from_records(AmericanOptionDataTr, columns = cols)
 UnderlyingData          = pd.DataFrame.from_records(UnderlyingData, columns = ["Dates", "Price", "Volume"])
 
-toc = time.time()
-print (toc-tic)
+
 
 #Save as csv file
 loc = "C:/Users/ekblo/Documents/MScQf/Masters Thesis/Data/CleanData/"
 OptionDataClean.to_csv(path_or_buf   = loc + UnderlyingTickerShort + 'OptionDataClean.csv', index = False)
-AmericanOptionDataClean.to_csv(path_or_buf   = loc + UnderlyingTickerShort + 'AmericanOptionDataClean.csv', index = False)
 UnderlyingData.to_csv(path_or_buf    = loc + UnderlyingTickerShort + 'UnderlyingData.csv', index = False)
 
-#Print option data to trade if it exists
+#Save american option data if exists
+if np.size(AmericanOptionDataTr) > 0:
+    AmericanOptionDataClean = pd.DataFrame.from_records(AmericanOptionDataTr, columns = cols)
+    AmericanOptionDataClean.to_csv(path_or_buf   = loc + UnderlyingTickerShort + 'AmericanOptionDataClean.csv', index = False)
+
+
+#Save option data to trade if it exists
 if 'OptionDataToTrade' in locals():
     OptionDataToTrade       = pd.DataFrame.from_records(OptionDataToTrade, columns = cols)    
     OptionDataToTrade.to_csv(path_or_buf = loc + UnderlyingTickerShort + 'OptionDataToTrade.csv', index = False)
+
+
+
+toc = time.time()
+print (toc-tic)
+
+
+
+
 
 
 
