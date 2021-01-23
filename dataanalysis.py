@@ -64,7 +64,7 @@ netGammaSPXTr   = SPXDataTr["netGamma"].to_numpy()
 netGammaSPX     = SPXData["netGamma"].to_numpy()
 
 #Investigate proporties of gamma
-def computeNegGammaStreaks(netGamma):
+def computeNegGammaStreaks(netGamma, UnderlyingTicker = None , hist = True, color = '#0504aa', histtype = 'stepfilled'):
     nDays  = np.size(netGamma)
     streak = 0
     negGammaStreaks = []    
@@ -76,10 +76,19 @@ def computeNegGammaStreaks(netGamma):
            streak = 0 #reset streak
        
     negGammaStreaks = np.transpose(np.array([negGammaStreaks]))
+    
+    if hist == True: #plot histogram
+        plt.figure()
+        n, bins, patches = plt.hist(x = negGammaStreaks, bins='auto', color=color, histtype = histtype)
+        plt.xlabel('Streak Size')
+        plt.ylabel('# of Days')
+        plt.title('Streaks of Negative Gamma Exposure (# of Days) for ' + UnderlyingTicker)
+        plt.show()
+        
     return negGammaStreaks
-def computeGammaStats(netGamma):    
+def computeGammaStats(netGamma, UnderlyingTicker = None, hist = True, color = '#0504aa', histtype = 'stepfilled'):    
     nDays = np.size(netGamma)
-    negGammaStreaks    = computeNegGammaStreaks(netGamma)
+    negGammaStreaks    = computeNegGammaStreaks(netGamma, hist = False)
     avgStreakLength    = np.round(np.mean(negGammaStreaks), decimals = 2)
     nDaysNegative      = np.sum(netGamma < 0)
     nDaysPositive      = np.sum(netGamma > 0)
@@ -88,10 +97,20 @@ def computeGammaStats(netGamma):
     
     legend = np.array(["Total No. of Days", "No. of Negative Net Gamma Days", "No. of Positive Net Gamma Days", "Negative Net Gamma Fraction", "Average Net Gamma Exposure (1000s)", "Average Cond. Neg. Gamma Streak"])
     netGammaStats = np.array([nDays, nDaysNegative, nDaysPositive, negGammaFraction, avgNetGamma, avgStreakLength])
+    
+    if hist == True: #Plot netGamma histogram
+        plt.figure()
+        n, bins, patches = plt.hist(x = netGamma, bins='auto', color=color, histtype = histtype)
+        plt.xlabel('MM Net Gamma Exposure')
+        plt.ylabel('# of Days')
+        plt.title('MM Net Gamma Exposure Distribution for ' + UnderlyingTicker)
+        plt.show()
+        
+    
     return legend, netGammaStats
     
-[legend, gammaStats]    = computeGammaStats(netGamma)
-[legend, gammaStatsSPX] = computeGammaStats(netGammaSPX)
+[legend, gammaStats]    = computeGammaStats(netGamma, UnderlyingTicker, hist = True)
+[legend, gammaStatsSPX] = computeGammaStats(netGammaSPX, "SPX", hist = True, color = "red")
 
 #Store in dataframe
 gammaStatsDf = pd.DataFrame()
@@ -99,47 +118,13 @@ gammaStatsDf["Statistics"]       = legend
 gammaStatsDf[UnderlyingTicker]   = gammaStats
 gammaStatsDf["SPX"]              = gammaStatsSPX
 
+negGammaStreaks    = computeNegGammaStreaks(netGamma, UnderlyingTicker)
+negGammaStreaksSPX = computeNegGammaStreaks(netGammaSPX, "SPX", color = "red")
 
 
 sys.exit()
 
 
-#Histogram of netGamma
-#Underlying Asset
-plt.figure()
-n, bins, patches = plt.hist(x = netGamma, bins='auto', color=prefColor, histtype = "stepfilled")
-plt.xlabel('MM Net Gamma Exposure')
-plt.ylabel('# of Days')
-plt.title('MM Net Gamma Exposure Distribution for ' + UnderlyingTicker)
-maxfreq = n.max()
-
-#SPX
-plt.figure()
-n, bins, patches = plt.hist(x = netGammaSPX, bins='auto', color="red", alpha=0.7)
-plt.xlabel('MM Net Gamma Exposure')
-plt.ylabel('# of Days')
-plt.title('MM Net Gamma Exposure Distribution for SPX')
-maxfreq = n.max()
-
-#Streaks
-plt.figure()
-n, bins, patches = plt.hist(x = negGammaStreaks, bins='auto', color=prefColor)
-plt.xlabel('Streak Size')
-plt.ylabel('# of Days')
-plt.title('Streaks of Negative Gamma Exposure (# of Days)')
-maxfreq = n.max()
-
-#Streaks
-plt.figure()
-n, bins, patches = plt.hist(x = negGammaStreaksSPX, bins='auto', color="red", alpha = 0.7)
-plt.xlabel('Streak Size')
-plt.ylabel('# of Days')
-plt.title('Streaks of Negative Gamma Exposure (# of Days)')
-plt.xlim([0, 70])
-maxfreq = n.max()
-
-
-sys.exit()
 
 # #Set up Regression
 lag = 1
@@ -149,13 +134,6 @@ lag = 1
 
 # regression = sm.OLS(y, X).fit()
 # print(regression.summary())
-
-
-
-
-
-
-
 
 
 
