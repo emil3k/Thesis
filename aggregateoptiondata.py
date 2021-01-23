@@ -27,15 +27,12 @@ Rf           = pd.read_excel("C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data
 RfDates      = Rf["Dates"].to_numpy()
 RfDates      = pd.to_datetime(RfDates, format = "%Y-%m-%d")
 RfDates      = bt.yyyymmdd(RfDates)
-#Rf["Dates"]  = RfDates #Replace with yyyymmdd format
-
-
 
 #Trim Data
 startDate = 19960102
 endDate   = 20200101
 
-OptionData  = bt.trimToDates(OptionData, OptionData["date"], startDate, endDate)
+OptionData  = bt.trimToDates(OptionData, OptionData["date"], startDate, endDate)    
 print(OptionData.head())
 print(OptionData.tail())
 
@@ -59,6 +56,19 @@ RfDaily     = np.zeros((np.size(RfTr, 0), ))
 RfDaily[1:] = Rf[0:-1] * daycount[1:]/360 
 
 
+#VIX Futures
+if UnderlyingTicker == "VIX":
+    futPrices  = pd.read_excel(r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\FuturesData\VIXFuturesData.xlsx', sheet_name = "Prices")
+    futDates   = futPrices["Dates"]
+    futDates   = pd.to_datetime(futDates, '%Y-%m-%d')
+    futDates   = bt.yyyymmdd(futDates)
+    
+    futPrices    = bt.trimToDates(futPrices, futDates, startDate, endDate)
+    frontPrices  = futPrices.iloc[:, 1].to_numpy()
+    backPrices   = futPrices.iloc[:, 2].to_numpy()
+
+
+################################
 ## Compute and aggregate data ##
 
 #Delete options that violate arbitrage bounds
@@ -149,11 +159,14 @@ cols        = np.array(["Dates", "netGamma", "netGamma_alt", "aggOpenInterest", 
                         "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingTicker, UnderlyingTicker + " Volume",\
                             UnderlyingTicker + " Dollar Volume"])
 aggregateDf =  pd.DataFrame.from_records(aggregateData, columns = cols)
-aggregateDf["LIBOR"] = Rf*100
-aggregateDf["Rf Daily"] = RfDaily
+aggregateDf["LIBOR"]    = Rf*100  #add LIBOR
+aggregateDf["Rf Daily"] = RfDaily #add daily Rf
+
+if UnderlyingTicker == "VIX":
+    aggregateDf["frontPrices"] = frontPrices
+    aggregateDf["backPrices"]  = backPrices
 
 
-sys.exit()
 ## EXPORT DATA TO EXCEL ##
 saveloc = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
 aggregateDf.to_csv(path_or_buf = saveloc + UnderlyingTicker + "AggregateData.csv" , index = False)
