@@ -22,6 +22,14 @@ loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/Clea
 OptionData        = pd.read_csv(loadloc + UnderlyingTicker + "OptionDataClean.csv")
 UnderlyingData    = pd.read_csv(loadloc + UnderlyingTicker + "UnderlyingData.csv")
 
+#Risk free rate
+Rf           = pd.read_excel("C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/SpotData/SpotData.xlsx", sheet_name = "Rf")
+RfDates      = Rf["Dates"].to_numpy()
+RfDates      = pd.to_datetime(RfDates, format = "%Y-%m-%d")
+RfDates      = bt.yyyymmdd(RfDates)
+#Rf["Dates"]  = RfDates #Replace with yyyymmdd format
+
+
 
 #Trim Data
 startDate = 19960102
@@ -32,9 +40,23 @@ print(OptionData.head())
 print(OptionData.tail())
 
 UnderlyingDataTr = bt.trimToDates(UnderlyingData, UnderlyingData["Dates"], startDate, endDate)
-print(UnderlyingData.head())
-print(UnderlyingData.tail())
+print(UnderlyingDataTr.head())
+print(UnderlyingDataTr.tail())
 
+
+#Trim Rf
+startDate = int(UnderlyingDataTr.iloc[0, 0])
+endDate   = int(UnderlyingDataTr.iloc[-1, 0]) + 1
+RfTr      = bt.trimToDates(Rf, RfDates, startDate, endDate)
+print(RfTr.head())
+print(RfTr.tail())
+
+#Compute daily rf
+datesTime   = pd.to_datetime(RfTr["Dates"].to_numpy(), format = '%Y-%m-%d')
+daycount    = bt.dayCount(datesTime)
+Rf          = RfTr["US0003M Index"].to_numpy() / 100 #Adjust to pct.points
+RfDaily     = np.zeros((np.size(RfTr, 0), ))
+RfDaily[1:] = Rf[0:-1] * daycount[1:]/360 
 
 
 ## Compute and aggregate data ##
@@ -127,8 +149,11 @@ cols        = np.array(["Dates", "netGamma", "netGamma_alt", "aggOpenInterest", 
                         "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingTicker, UnderlyingTicker + " Volume",\
                             UnderlyingTicker + " Dollar Volume"])
 aggregateDf =  pd.DataFrame.from_records(aggregateData, columns = cols)
+aggregateDf["LIBOR"] = Rf*100
+aggregateDf["Rf Daily"] = RfDaily
 
 
+sys.exit()
 ## EXPORT DATA TO EXCEL ##
 saveloc = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
 aggregateDf.to_csv(path_or_buf = saveloc + UnderlyingTicker + "AggregateData.csv" , index = False)
@@ -140,7 +165,7 @@ aggregateDf.to_csv(path_or_buf = saveloc + UnderlyingTicker + "AggregateData.csv
 sys.exit()
 
 
-returns = np.concatenate((np.zeros((1,)), UnderlyingPrices[1:] / UnderlyingPrices[0:-1] - 1), axis = 0)
+returns   = np.concatenate((np.zeros((1,)), UnderlyingPrices[1:] / UnderlyingPrices[0:-1] - 1), axis = 0)
 dates4fig = pd.to_datetime(aggregateData[:, 0], format = '%Y%m%d')
 
 ##################################
