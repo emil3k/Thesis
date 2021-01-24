@@ -29,16 +29,10 @@ nDays            = np.size(dates)
 
 #Grab futures returns and dates if underlying is VIX
 if UnderlyingTicker == "VIX":
-    futPrices  = pd.read_excel(r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\FuturesData\VIXFuturesData.xlsx', sheet_name = "Prices")
-    futDates   = futPrices["Dates"]
-    futDates   = pd.to_datetime(futDates, '%Y-%m-%d')
-    futDates   = bt.yyyymmdd(futDates)
+    frontPrices      = data["frontPrices"].to_numpy()
+    frontXsReturns   = frontPrices[1:, :] / frontPrices[0:-1, :] - 1
+    frontXsReturns   = np.concatenate((np.zeros((1, )), frontXsReturns), axis = 0)
     
-    futPrices    = bt.trimToDates(futPrices, futDates, dates[0], dates[-1] + 1)
-    futPrices    = futPrices.iloc[:, 1:].to_numpy()
-    futXsReturns = futPrices[1:, :] / futPrices[0:-1, :] - 1
-    futXsReturns = np.concatenate((np.zeros((1, np.size(futXsReturns, 1))), futXsReturns), axis = 0)
-    frontXsReturns = futXsReturns[:, 0]
 
 #trim SPX data to match underlying
 startDate = dates[0]
