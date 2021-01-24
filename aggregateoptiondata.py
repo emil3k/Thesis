@@ -13,8 +13,8 @@ import sys
 ## Aggregate Option Data to daily series
 
 ### SET WHICH ASSET TO BE IMPORTED #######################################################
-UnderlyingAssetName   = "VIX Index"
-UnderlyingTicker      = "VIX"
+UnderlyingAssetName   = "SPY Index"
+UnderlyingTicker      = "SPY"
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/CleanData/"
 ##########################################################################################
 
@@ -59,13 +59,19 @@ RfDaily[1:] = Rf[0:-1] * daycount[1:]/360
 #VIX Futures
 if UnderlyingTicker == "VIX":
     futPrices  = pd.read_excel(r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\FuturesData\VIXFuturesData.xlsx', sheet_name = "Prices")
+    futVolume  = pd.read_excel(r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\FuturesData\VIXFuturesData.xlsx', sheet_name = "Volume")
     futDates   = futPrices["Dates"]
     futDates   = pd.to_datetime(futDates, '%Y-%m-%d')
     futDates   = bt.yyyymmdd(futDates)
     
     futPrices    = bt.trimToDates(futPrices, futDates, startDate, endDate)
+    futVolume    = bt.trimToDates(futVolume, futDates, startDate, endDate)
+    
     frontPrices  = futPrices.iloc[:, 1].to_numpy()
     backPrices   = futPrices.iloc[:, 2].to_numpy()
+    frontVolume  = futVolume.iloc[:, 1].to_numpy()
+    backVolume   = futVolume.iloc[:, 2].to_numpy()
+
 
 
 ################################
@@ -80,6 +86,27 @@ OptionDataTr  = OptionData.loc[non_violating, :]
 UnderlyingDates  = UnderlyingDataTr["Dates"].to_numpy()
 UnderlyingPrices = UnderlyingDataTr["Price"].to_numpy()
 UnderlyingVolume = UnderlyingDataTr["Volume"].to_numpy()
+
+#MA dollar volume
+lookback = 90
+nDays          = np.size(UnderlyingVolume)
+MADollarVolume = np.zeros((nDays,))
+MAVolume       = np.zeros((nDays,))
+
+for i in np.arange(lookback, nDays):
+    #grab volume
+    if UnderlyingTicker == "VIX":
+        volume = frontVolume[i - lookback:i]
+        #Should have futures price here, estimate with spot price
+    else:
+        volume = UnderlyingVolume[i - lookback:i] 
+    
+    price  = UnderlyingPrices[i - lookback:i] #grab price
+    dollar_volume = volume*price #compute dollar volume
+    
+    MAVolume[i]       = np.mean(volume)
+    MADollarVolume[i] = np.mean(dollar_volume)
+
 
 #Option Dates
 OptionDates      = OptionDataTr["date"].to_numpy()
@@ -130,7 +157,7 @@ for i in np.arange(0, nOptionDays):
     deltaAdjNetOpenInterest[i] = np.sum(rel_delta * 100 * rel_openInterest)
     
     #volume
-    aggVolume[i] = np.sum(rel_volume)
+    aggVolume[i]      = np.sum(rel_volume)
     deltaAdjVolume[i] = np.sum(np.abs(rel_delta)*100 * rel_volume)
     
     
@@ -161,15 +188,24 @@ cols        = np.array(["Dates", "netGamma", "netGamma_alt", "aggOpenInterest", 
 aggregateDf =  pd.DataFrame.from_records(aggregateData, columns = cols)
 aggregateDf["LIBOR"]    = Rf*100  #add LIBOR
 aggregateDf["Rf Daily"] = RfDaily #add daily Rf
+aggregateDf["MAVolume"] = MAVolume
+aggregateDf["MADollarVolume"] = MADollarVolume
 
 if UnderlyingTicker == "VIX":
     aggregateDf["frontPrices"] = frontPrices
     aggregateDf["backPrices"]  = backPrices
+    aggregateDf["frontVolume"] = frontVolume
+    aggregateDf["backVolume"]  = backVolume
+
+aggregateDf  = aggregateDf.iloc[lookback:, :]
 
 
 ## EXPORT DATA TO EXCEL ##
 saveloc = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
 aggregateDf.to_csv(path_or_buf = saveloc + UnderlyingTicker + "AggregateData.csv" , index = False)
+
+
+
 
 
 
