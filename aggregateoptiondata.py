@@ -13,8 +13,8 @@ import sys
 ## Aggregate Option Data to daily series
 
 ### SET WHICH ASSET TO BE IMPORTED #######################################################
-UnderlyingAssetName   = "SPY Index"
-UnderlyingTicker      = "SPY"
+UnderlyingAssetName   = "SPX Index"
+UnderlyingTicker      = "SPX"
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/CleanData/"
 ##########################################################################################
 
@@ -165,7 +165,16 @@ for i in np.arange(0, nOptionDays):
 aggregateData = np.concatenate((UniqueDates.reshape(nOptionDays, 1), netGamma, netGamma_alt, aggOpenInterest,\
                 netOpenInterest, deltaAdjOpenInterest, deltaAdjNetOpenInterest, aggVolume, deltaAdjVolume), axis = 1)    
 
-    
+#Save unsynced (to underlying) data for strategy use
+#transfrom to datafram
+cols              = np.array(["Dates", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
+                        "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume"])
+aggregateUnsynced =  pd.DataFrame.from_records(aggregateData, columns = cols)
+saveloc           = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateDataTr/"
+aggregateUnsynced.to_csv(path_or_buf = saveloc + UnderlyingTicker + "AggregateDataTr.csv" , index = False)   
+
+sys.exit()    
+
 #Fill missing values of aggregate data w/ previous day value
 nRows = np.size(UnderlyingDates)
 nCols = np.size(aggregateData, 1)
@@ -199,7 +208,7 @@ if UnderlyingTicker == "VIX":
 
 aggregateDf  = aggregateDf.iloc[lookback:, :]
 
-
+sys.exit()
 ## EXPORT DATA TO EXCEL ##
 saveloc = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
 aggregateDf.to_csv(path_or_buf = saveloc + UnderlyingTicker + "AggregateData.csv" , index = False)
