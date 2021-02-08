@@ -167,48 +167,75 @@ aggregateData = np.concatenate((UniqueDates.reshape(nOptionDays, 1), netGamma, n
 
 #Save unsynced (to underlying) data for strategy use
 #transfrom to datafram
-cols              = np.array(["Dates", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
-                        "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume"])
-aggregateUnsynced =  pd.DataFrame.from_records(aggregateData, columns = cols)
-saveloc           = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateDataTr/"
-aggregateUnsynced.to_csv(path_or_buf = saveloc + UnderlyingTicker + "AggregateDataTr.csv" , index = False)   
+#cols              = np.array(["Dates", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
+#                        "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume"])
+#aggregateUnsynced =  pd.DataFrame.from_records(aggregateData, columns = cols)
+#saveloc           = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateDataTr/"
+#aggregateUnsynced.to_csv(path_or_buf = saveloc + UnderlyingTicker + "AggregateDataTr.csv" , index = False)   
 
-sys.exit()    
 
 #Fill missing values of aggregate data w/ previous day value
-nRows = np.size(UnderlyingDates)
-nCols = np.size(aggregateData, 1)
-
-syncMat    = np.zeros((nRows, nCols))
-date_bool  = np.in1d(UnderlyingDates, UniqueDates) #Dates where option data is recorded
-date_shift = np.concatenate((date_bool[1:], np.ones((1,))), axis = 0) == 1 
-
-syncMat[date_bool, :] = aggregateData
-syncMat[(date_bool == 0), 1:] = syncMat[(date_shift == 0), 1:]    
-syncMat[(date_bool == 0), 0]  = UnderlyingDates[(date_bool == 0)]
-UnderlyingDollarVolume  = UnderlyingPrices * UnderlyingVolume     
-aggregateData = np.concatenate((syncMat, UnderlyingPrices.reshape(nRows, 1),\
-                                UnderlyingVolume.reshape(nRows, 1), UnderlyingDollarVolume.reshape(nRows, 1)), axis = 1) #add price and volume    
-
-#transfrom to datafram
-cols        = np.array(["Dates", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
-                        "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingTicker, UnderlyingTicker + " Volume",\
-                            UnderlyingTicker + " Dollar Volume"])
-aggregateDf =  pd.DataFrame.from_records(aggregateData, columns = cols)
-aggregateDf["LIBOR"]    = Rf*100  #add LIBOR
-aggregateDf["Rf Daily"] = RfDaily #add daily Rf
-aggregateDf["MAVolume"] = MAVolume
-aggregateDf["MADollarVolume"] = MADollarVolume
+UnderlyingDollarVolume  = UnderlyingPrices * UnderlyingVolume   
+UnderlyingData          = np.concatenate((UnderlyingDates.reshape(-1, 1), UnderlyingPrices.reshape(-1, 1),\
+                                UnderlyingVolume.reshape(-1, 1), UnderlyingDollarVolume.reshape(-1, 1),\
+                                (Rf*100).reshape(-1, 1), MAVolume.reshape(-1,1), MADollarVolume.reshape(-1,1)), axis = 1) #add price and volume 
 
 if UnderlyingTicker == "VIX":
-    aggregateDf["frontPrices"] = frontPrices
-    aggregateDf["backPrices"]  = backPrices
-    aggregateDf["frontVolume"] = frontVolume
-    aggregateDf["backVolume"]  = backVolume
+    UnderlyingData = np.concatenate((UnderlyingData, frontPrices.reshape(-1,1), backPrices(-1,1), frontVolume.reshape(-1,1), backVolume.reshape(-1,1)), axis = 1)
+    cols  = np.array(["Dates", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
+                        "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingTicker, UnderlyingTicker + " Volume",\
+                            UnderlyingTicker + " Dollar Volume", "LIBOR", "MAVolume", "MADollarVolume", "frontPrices", "backPrices", "frontVolume", "backVolume"])
+else:
+    cols = np.array(["Dates", UnderlyingTicker, UnderlyingTicker + " Volume", UnderlyingTicker + " Dollar Volume",\
+                 "LIBOR", "MAVolume", "MADollarVolume", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest",\
+                     "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume"])  
+    
+    # cols = np.array(["Dates", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
+    #                     "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingTicker, UnderlyingTicker + " Volume",\
+    #                         UnderlyingTicker + " Dollar Volume", "LIBOR", "MAVolume", "MADollarVolume"])
+
+    
+aggregateDataSynced = bt.SyncData(UnderlyingData, aggregateData, removeNoneOverlapping = True)    
+    
+
+# nRows = np.size(UnderlyingDates)
+# nCols = np.size(aggregateData, 1)
+
+# syncMat    = np.zeros((nRows, nCols))
+# date_bool  = np.in1d(UnderlyingDates, UniqueDates) #Dates where option data is recorded
+# date_shift = np.concatenate((date_bool[1:], np.ones((1,))), axis = 0) == 1 
+
+# syncMat[date_bool, :] = aggregateData
+# syncMat[(date_bool == 0), 1:] = syncMat[(date_shift == 0), 1:]    
+# syncMat[(date_bool == 0), 0]  = UnderlyingDates[(date_bool == 0)]
+
+#aggregateData = np.concatenate((syncMat, UnderlyingPrices.reshape(nRows, 1),\
+#                                UnderlyingVolume.reshape(nRows, 1), UnderlyingDollarVolume.reshape(nRows, 1)), axis = 1) #add price and volume      
+    
+#transfrom to datafram
+#cols        = np.array(["Dates", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
+#                        "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingTicker, UnderlyingTicker + " Volume",\
+#                            UnderlyingTicker + " Dollar Volume"])
+
+
+
+    
+aggregateDf =  pd.DataFrame.from_records(aggregateDataSynced, columns = cols)
+
+#aggregateDf["LIBOR"]    = Rf*100  #add LIBOR
+#aggregateDf["Rf Daily"] = RfDaily #add daily Rf
+#aggregateDf["MAVolume"] = MAVolume
+#aggregateDf["MADollarVolume"] = MADollarVolume
+
+# if UnderlyingTicker == "VIX":
+#     aggregateDf["frontPrices"] = frontPrices
+#     aggregateDf["backPrices"]  = backPrices
+#     aggregateDf["frontVolume"] = frontVolume
+#     aggregateDf["backVolume"]  = backVolume
 
 aggregateDf  = aggregateDf.iloc[lookback:, :]
 
-sys.exit()
+
 ## EXPORT DATA TO EXCEL ##
 saveloc = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
 aggregateDf.to_csv(path_or_buf = saveloc + UnderlyingTicker + "AggregateData.csv" , index = False)
@@ -221,6 +248,16 @@ aggregateDf.to_csv(path_or_buf = saveloc + UnderlyingTicker + "AggregateData.csv
 
 
 sys.exit()
+
+
+
+
+
+
+
+
+
+
 
 
 returns   = np.concatenate((np.zeros((1,)), UnderlyingPrices[1:] / UnderlyingPrices[0:-1] - 1), axis = 0)
