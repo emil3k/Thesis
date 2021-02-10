@@ -14,8 +14,8 @@ import sys
 #Regressions
 
 ### SET IMPORT PARAMS ####################################################################
-UnderlyingAssetName   = ["SPX Index", "SPY US Equity", "VIX Index"]
-UnderlyingTicker      = ["SPX", "SPY", "VIX"]
+UnderlyingAssetName   = ["SPX Index"]
+UnderlyingTicker      = ["SPX"]
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
 prefColor             = '#0504aa'
 ##########################################################################################
@@ -34,10 +34,21 @@ XsReturns    = []
 for i in np.arange(0, nAssets):
     data   = AggregateData[i]
     ticker = UnderlyingTicker[i]
+    rf     = data["LIBOR"].to_numpy()
+    
+    def computeRfDaily(data):
+        dates            = data["Dates"].to_numpy()
+        dates4fig        = pd.to_datetime(dates, format = '%Y%m%d')
+        daycount         = bt.dayCount(dates4fig)
+        
+        Rf               = data["LIBOR"].to_numpy() / 100
+        RfDaily          = np.zeros((np.size(Rf, 0), ))
+        RfDaily[1:]      = Rf[0:-1] * daycount[1:]/360 
+        return RfDaily
     
     if ticker  != "VIX":
        price    = data[ticker].to_numpy()
-       rf       = data["Rf Daily"].to_numpy() #grab Rf    
+       rf       = computeRfDaily(data)
        
        #Compute returns 
        ret   = price[1:] / price[0:-1] - 1 
@@ -50,7 +61,7 @@ for i in np.arange(0, nAssets):
     
     else:
        frontPrices    = data["frontPrices"].to_numpy()
-       rf             = data["Rf Daily"].to_numpy() #grab Rf    
+       rf = computeRfDaily(data)
        
        frontXsReturns = frontPrices[1:] / frontPrices[0:-1] - 1
        frontXsReturns =  np.concatenate((np.zeros((1, )), frontXsReturns), axis = 0)
@@ -114,8 +125,8 @@ for j in np.arange(0, len(UnderlyingTicker)):
         y      = np.abs(xsret[lag:])
         nObs   = np.size(y)
         
-        X_raw  = netGamma_norm[0:-lag]
-        X_sqrd = netGamma_norm[0:-lag]**2
+        X_raw  = adjNetGamma_norm[0:-lag]
+        X_sqrd = adjNetGamma_norm[0:-lag]**2
         X      = np.concatenate((X_raw.reshape(nObs, 1), X_sqrd.reshape(nObs, 1)), axis = 1)
         X      = sm.add_constant(X)
     
@@ -128,7 +139,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
         legend  = np.array(["statistic", "coefficient", "t stats", "p-values", "r_squared"])
         alpha   = np.array(["alpha", coefs[0], tvals[0], pvals[0], r_squared])
         b1      = np.array(["b1", coefs[1], tvals[1], pvals[1], " "])
-        b2      = np.array(["b1", coefs[2], tvals[2], pvals[2], " "])
+        b2      = np.array(["b2", coefs[2], tvals[2], pvals[2], " "])
         
         lag_df = pd.DataFrame()
         
@@ -150,7 +161,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
             
             fig, ax = plt.subplots()
             
-            ax.scatter(netGamma_norm[0:-lag], y, color = '#0504aa', s = 0.5)
+            ax.scatter(X_raw, y, color = '#0504aa', s = 0.5)
             ax.plot(x, reg_line, color = "red", alpha = 0.5)
             fig.suptitle("Absolute Returns vs Net Gamma Exposure (normalized)")
             ax.set_xlabel("Net Gamma Exposure (Normalized)")

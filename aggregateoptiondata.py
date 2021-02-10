@@ -13,8 +13,8 @@ import sys
 ## Aggregate Option Data to daily series
 
 ### SET WHICH ASSET TO BE IMPORTED #######################################################
-UnderlyingAssetName   = "SPX Index"
-UnderlyingTicker      = "SPX"
+UnderlyingAssetName   = "VIX Index"
+UnderlyingTicker      = "VIX"
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/CleanData/"
 ##########################################################################################
 
@@ -181,10 +181,16 @@ UnderlyingData          = np.concatenate((UnderlyingDates.reshape(-1, 1), Underl
                                 (Rf*100).reshape(-1, 1), MAVolume.reshape(-1,1), MADollarVolume.reshape(-1,1)), axis = 1) #add price and volume 
 
 if UnderlyingTicker == "VIX":
-    UnderlyingData = np.concatenate((UnderlyingData, frontPrices.reshape(-1,1), backPrices(-1,1), frontVolume.reshape(-1,1), backVolume.reshape(-1,1)), axis = 1)
-    cols  = np.array(["Dates", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
-                        "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingTicker, UnderlyingTicker + " Volume",\
-                            UnderlyingTicker + " Dollar Volume", "LIBOR", "MAVolume", "MADollarVolume", "frontPrices", "backPrices", "frontVolume", "backVolume"])
+    UnderlyingData = np.concatenate((UnderlyingData, frontPrices.reshape(-1, 1), backPrices.reshape(-1, 1), frontVolume.reshape(-1, 1), backVolume.reshape(-1, 1)), axis = 1)
+    
+    cols = np.array(["Dates", UnderlyingTicker, UnderlyingTicker + " Volume", UnderlyingTicker + " Dollar Volume",\
+                 "LIBOR", "MAVolume", "MADollarVolume", "frontPrices", "backPrices", "frontVolume", "backVolume", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest",\
+                     "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume"])
+         
+         
+    # cols  = np.array(["Dates", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
+    #                     "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingTicker, UnderlyingTicker + " Volume",\
+    #                         UnderlyingTicker + " Dollar Volume", "LIBOR", "MAVolume", "MADollarVolume", "frontPrices", "backPrices", "frontVolume", "backVolume"])
 else:
     cols = np.array(["Dates", UnderlyingTicker, UnderlyingTicker + " Volume", UnderlyingTicker + " Dollar Volume",\
                  "LIBOR", "MAVolume", "MADollarVolume", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest",\
@@ -221,6 +227,7 @@ aggregateDataSynced = bt.SyncData(UnderlyingData, aggregateData, removeNoneOverl
 
     
 aggregateDf =  pd.DataFrame.from_records(aggregateDataSynced, columns = cols)
+
 
 #aggregateDf["LIBOR"]    = Rf*100  #add LIBOR
 #aggregateDf["Rf Daily"] = RfDaily #add daily Rf

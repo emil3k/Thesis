@@ -12,8 +12,8 @@ import statsmodels.api as sm
 import sys
 
 ### SET WHICH ASSET TO BE IMPORTED #######################################################
-UnderlyingAssetName   = "SPX Index"
-UnderlyingTicker      = "SPX"
+UnderlyingAssetName   = "VIX Index"
+UnderlyingTicker      = "VIX"
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
 prefColor             = '#0504aa'
 ##########################################################################################
@@ -24,17 +24,28 @@ SPXDataAll = pd.read_csv(loadloc + "SPXAggregateData.csv")                 #SPX 
 
 #Sample Split
 datesAll         = dataAll["Dates"].to_numpy()
-startDates       = [datesAll[0], 20090101]
-endDates         = [20081231, datesAll[-1] + 1]
-periodLabels     = [str(int(np.floor(datesAll[0] / 10000))) + " - 2009", "2009 - " + str(int(np.floor(datesAll[-1] / 10000)) + 1)]
+SPXdatesAll      = SPXDataAll["Dates"].to_numpy()
+fullSampleOnly   = True
 
+if fullSampleOnly == True:
+    startDates       = [datesAll[0]]
+    endDates         = [datesAll[-1] + 1]
+    periodLabels     = [str(int(np.floor(datesAll[0] / 10000))) + " - " + str(int(np.floor(datesAll[-1] / 10000)) + 1)]
+else:
+    startDates       = [datesAll[0], 20090101, datesAll[0]]
+    endDates         = [20081231, datesAll[-1] + 1, datesAll[-1] + 1]
+    periodLabels     = [str(int(np.floor(datesAll[0] / 10000))) + " - 2009", "2009 - " + str(int(np.floor(datesAll[-1] / 10000)) + 1), \
+                        str(int(np.floor(datesAll[0] / 10000))) + " - " + str(int(np.floor(datesAll[-1] / 10000)) + 1)]
+
+    
 nSplits = np.size(startDates)
+
 
 for i in np.arange(0, nSplits):
    
     #Split data sample
     data        = bt.trimToDates(dataAll, datesAll, startDates[i], endDates[i])
-    SPXData     = bt.trimToDates(SPXDataAll, datesAll, startDates[i], endDates[i])
+    SPXData     = bt.trimToDates(SPXDataAll, SPXdatesAll, startDates[i], endDates[i])
     periodLabel = periodLabels[i]
     
     #Print for check
@@ -59,7 +70,7 @@ for i in np.arange(0, nSplits):
     #Grab futures returns and dates if underlying is VIX
     if UnderlyingTicker == "VIX":
         frontPrices      = data["frontPrices"].to_numpy()
-        frontXsReturns   = frontPrices[1:, :] / frontPrices[0:-1, :] - 1
+        frontXsReturns   = frontPrices[1:] / frontPrices[0:-1] - 1
         frontXsReturns   = np.concatenate((np.zeros((1, )), frontXsReturns), axis = 0)
         
     
@@ -95,7 +106,7 @@ for i in np.arange(0, nSplits):
             if netGamma[i] < 0: #Start new streak
                streak = streak + 1
             elif streak > 0:
-               negGammaStreaks.append(streak)
+               negGammaStreaks.append(streak) #save streak
                streak = 0 #reset streak
            
         negGammaStreaks = np.transpose(np.array([negGammaStreaks]))
@@ -159,10 +170,12 @@ for i in np.arange(0, nSplits):
     netGamma_norm    = (netGamma - np.mean(netGamma)) / np.std(netGamma)
     netGammaSPX_norm = (netGammaSPXTr - np.mean(netGammaSPXTr)) / np.std(netGammaSPXTr)
     
-    dataToSmooth  = np.concatenate((netGamma.reshape(nDays, 1), netGammaSPXTr.reshape(nDays, 1),\
-                    netGamma_norm.reshape(nDays, 1), netGammaSPX_norm.reshape(nDays, 1)  ), axis = 1)
+    dataToSmooth     = np.concatenate((netGamma.reshape(nDays, 1), netGammaSPXTr.reshape(nDays, 1),\
+                       netGamma_norm.reshape(nDays, 1), netGammaSPX_norm.reshape(nDays, 1)  ), axis = 1)
     
-    def smoothData(dataToSmooth, dates, lookback):
+    #Smooth data and plot    
+    def smoothData(dataToSmooth, dates, lookback, plotResults = False, UnderlyingTicker = ""):
+        
         nCols         = np.size(dataToSmooth, 1)
         nDays         = np.size(dataToSmooth, 0)
         smoothData    = np.zeros((nDays, nCols)) #preallocate
@@ -177,44 +190,53 @@ for i in np.arange(0, nSplits):
         #Trim
         smoothData      = smoothData[lookback:, :]
         smoothDates     = dates4fig[lookback:, ]
+             
+        if plotResults == True:
+            plt.figure()
+            plt.plot(smoothDates, smoothData[:, 2], color = '#0504aa', label = UnderlyingTicker + " (Normalized)")
+            if UnderlyingTicker != "SPX":
+                plt.plot(smoothDates, smoothData[:, 3], color = "black", label = "SPX")
+            plt.title(str(lookback) + "-day MovAvg Net Gamma Exposure" + " (" + periodLabel + ")")
+            plt.ylabel("Net Gamma Exposure")
+            plt.legend()
+            plt.show()
     
         return smoothData, smoothDates
     
+    #Plot gamma scatter plots and normalized time series
+    def gammaPlots(netGamma, Returns, lag, UnderlyingTicker = "", periodLabel = ""):
+        netGamma_norm    = (netGamma - np.mean(netGamma)) / np.std(netGamma)
+        
+        #Normalized
+        plt.figure()
+        plt.plot(dates4fig, netGamma_norm, color = '#0504aa', label = UnderlyingTicker + " (Normalized)")
+        plt.title("MM Net Gamma Exposure for " + UnderlyingTicker + " (" + periodLabel + ")")
+        plt.ylabel("Net Gamma Exposure")
+        plt.legend()
+        plt.show()
+              
+        ## Scatter plot
+        plt.figure()
+        plt.scatter(netGamma[0:-lag], Returns[lag:], color = '#0504aa', s = 0.7)
+        plt.title("Returns vs Net Gamma for " + UnderlyingTicker + ", lag = " + str(lag) + " day" + " (" + periodLabel + ")")
+        plt.ylabel(UnderlyingTicker + " Returns")
+        plt.xlabel("Market Maker Net Gamma Exposure")
+        plt.legend()
+        
+        if UnderlyingTicker != "SPX":
+            ## Scatter plot
+            plt.figure()
+            plt.scatter(netGammaSPX[0:-lag], Returns[lag:], color = '#0504aa', s = 0.7)
+            plt.title("Returns vs Net Gamma for SPX, lag = " + str(lag) + " day" + " (" + periodLabel + ")")
+            plt.ylabel(UnderlyingTicker + " Futures Returns")
+            plt.xlabel("Market Maker Net SPX Gamma Exposure")
+            plt.legend()
+    
+            
     lookback = 100
-    [smoothGamma, smoothDates] = smoothData(dataToSmooth, dates, lookback)
+    [smoothGamma, smoothDates] = smoothData(dataToSmooth, dates, lookback, plotResults = True, UnderlyingTicker = UnderlyingTicker)
+    gammaPlots(netGamma, Returns, lag = 1, UnderlyingTicker = UnderlyingTicker, periodLabel = periodLabel)
     
-    ## Plot net Gamma of underlying and SPX
-    #  Smooth and normalized
-    plt.figure()
-    plt.plot(smoothDates, smoothGamma[:, 2], color = "blue", label = UnderlyingTicker)
-    plt.plot(smoothDates, smoothGamma[:, 3], color = "black", label = "SPX")
-    plt.title(str(lookback) + "-day Normalized MovAvg MM Net Gamma Exposure" + " (" + periodLabel + ")")
-    plt.ylabel("Net Gamma Exposure")
-    plt.legend()
-    
-    #Normalized
-    plt.figure()
-    plt.plot(dates4fig, netGamma_norm, color = "blue", label = UnderlyingTicker)
-    plt.plot(dates4fig, netGammaSPX_norm, color = "black", label = "SPX")
-    plt.title("MM Net Gamma Exposure for " + UnderlyingTicker + " and SPX" + " (" + periodLabel + ")")
-    plt.ylabel("Net Gamma Exposure")
-    plt.legend()
-    
-    ## Scatter plot
-    plt.figure()
-    plt.scatter(netGamma[0:-lag], Returns[lag:], color = "blue", s = 0.7)
-    plt.title("Returns vs Gamma for " + UnderlyingTicker + ", lag = " + str(lag) + " day" + " (" + periodLabel + ")")
-    plt.ylabel(UnderlyingTicker + " Returns")
-    plt.xlabel("Market Maker Net Gamma Exposure")
-    plt.legend()
-    
-    ## Scatter plot
-    plt.figure()
-    plt.scatter(netGammaSPX[0:-lag], Returns[lag:], color = "blue", s = 0.7)
-    plt.title("Returns vs MM net Gamma for SPX, lag = " + str(lag) + " day" + " (" + periodLabel + ")")
-    plt.ylabel(UnderlyingTicker + " Futures Returns")
-    plt.xlabel("Market Maker Net SPX Gamma Exposure")
-    plt.legend()
     
     
     #plot Buckets function
@@ -250,7 +272,7 @@ for i in np.arange(0, nSplits):
         width = 0.7
         plt.figure()
         plt.bar(x, bucketAbsMeans, width = width, color = '#0504aa', label = UnderlyingTicker)  
-        plt.title("Average Absolute Returns by Sorted Gamma Exposure, Lag = " + str(lag) + " day" + " (" + periodLabel + ")")
+        plt.title("Avg. Absolute Returns by Gamma Exposure, Lag = " + str(lag) + " day" + " (" + periodLabel + ")")
         plt.xlabel("Gamma Exposure (1 is the lowest quantile)")
         plt.ylabel("Average Absolute Returns")
         plt.legend()
@@ -259,7 +281,7 @@ for i in np.arange(0, nSplits):
         x = np.arange(1, nBuckets + 1)
         plt.figure()
         plt.bar(x, bucketMeans, width = width, color = '#0504aa', label = UnderlyingTicker)  
-        plt.title("Average Returns by Sorted Gamma Exposure, Lag = " + str(lag) + " day" + " (" + periodLabel + ")")
+        plt.title("Avg. Returns by Gamma Exposure, Lag = " + str(lag) + " day" + " (" + periodLabel + ")")
         plt.xlabel("Gamma Exposure (1 is the lowest quantile)")
         plt.ylabel("Average Returns")
         plt.legend()
@@ -268,7 +290,7 @@ for i in np.arange(0, nSplits):
         x = np.arange(1, nBuckets + 1)
         plt.figure()
         plt.bar(x, bucketStd, width = width, color = '#0504aa', label = UnderlyingTicker)  
-        plt.title("Standard Deviation by Sorted Gamma Exposure, Lag = " + str(lag) + " day" + " (" + periodLabel + ")")
+        plt.title("Std. by Gamma Exposure, Lag = " + str(lag) + " day" + " (" + periodLabel + ")")
         plt.xlabel("Gamma Exposure (1 is the lowest quantile)")
         plt.ylabel("Standard Deviation")
         plt.legend()
@@ -278,6 +300,10 @@ for i in np.arange(0, nSplits):
     
     #plot Buckets
     [bMeans, bAbsMeans, bStd] = plotBucketStats(netGamma, Returns, lag = 1, nBuckets = 6, periodLabel = periodLabel)
+    
+    #VIX Returns for SPX gamma
+    VIXandSPX = plotBucketStats(netGammaSPX, Returns, lag = 1, nBuckets = 6, periodLabel = "SPX Gamma")
+
     
     ## Open Interest and Volume Investigation
     #Moving average smoothing for visualizations
@@ -344,7 +370,6 @@ for i in np.arange(0, nSplits):
     
     bars2  = np.array([np.mean(afterNegSameDay), np.mean(afterPosSameDay), np.mean(afterNegSameDay), np.mean(afterPosSameDay)])
     
-    
     # Unconditional
     meanReturn = np.mean(Returns[lag:])
     bars3 = np.array([meanReturn, meanReturn, meanReturn, meanReturn])
@@ -362,26 +387,55 @@ for i in np.arange(0, nSplits):
     plt.bar(r2, bars2, width = barWidth, color = "red", label = "Conditional on return")
     plt.bar(r3, bars3, width = barWidth, color = "black", label = "Unconditonal")
     plt.title("Average Returns By Previous Day Gamma and Return" + " (" + periodLabel + ")")
-    plt.xlabel("Net Gamma and Previous Day Return Combinations")
+    plt.xlabel("Previous Day Net Gamma and Return Combinations")
     plt.ylabel("Average Daily Return")
     plt.xticks(r1 + barWidth/2, ticks)
     plt.legend()
     plt.show()
 
 
+    #Conditional Autocorrelation
+    nDays  = np.size(netGamma)
+    streak = 0
+    negGammaStreaks = []
+    negGammaReturns = np.zeros((nDays, nDays))
+    j = 0 
+    for i in np.arange(0, nDays):
+       if netGamma[i] < 0: #Start new streak
+          negGammaReturns[i, j] = Returns[i] 
+          streak = streak + 1
 
+       elif streak > 0:
+          negGammaStreaks.append(streak) #save streak
+          negGammaReturns[i, j] = Returns[i] #Save return day after streak ends
+          streak = 0 #reset streak
+          j = j + 1 # jump to next column
 
+    
+    #Compute conditional autocorrelation
+    negGammaAutocorr = []
+    for j in np.arange(0, nDays):
+        col  = negGammaReturns[:, j] #grab column
+        ret  = col[np.nonzero(col)]
+        if len(ret) > 2:
+            corr = np.corrcoef(ret[0:-1],ret[1:])[1, 0] #compute correlation coefficient
+            negGammaAutocorr.append(corr) #save
 
+    #Finalize bar plot
+    negGammaAutocorr    = np.transpose(np.array([negGammaAutocorr]))
+    averageCondAutocorr = np.mean(negGammaAutocorr)
+    uncondAutocorr      = np.corrcoef(Returns[0:-1], Returns[1:])[1,0]
 
-
-
-
-
-
-
-
-
-
+    bars = np.array([averageCondAutocorr, uncondAutocorr])
+    x    = np.arange(len(bars))
+    ticks = np.array(["Cond. on Negative Gamma", "Unconditional"])
+    plt.figure()
+    plt.bar(x, bars, width = 0.7 , color = prefColor)  
+    plt.title("Autocorrelation of Returns" + " (" + periodLabel + ")")
+    plt.ylabel("Average Daily Return")
+    plt.xticks(x, ticks)
+    plt.legend()
+    plt.show()
 
 
 
