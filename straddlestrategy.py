@@ -354,7 +354,10 @@ cumCallReturns     = np.cumprod(1 + callReturnsScaled)
 cumPutReturns      = np.cumprod(1 + putReturnsScaled)
 cumStraddleReturns = np.cumprod(1 + straddleReturnsScaled)
 cumOverlayReturns  = np.cumprod(1 + overlayReturns)
-cumUnderlyingReturns = np.cumprod(1 + underlyingXsReturns)
+cumUnderlyingReturns     = np.cumprod(1 + underlyingXsReturns)
+cumUncondCallReturns     = np.cumprod(1 + uncondCallReturnsScaled)
+cumUncondPutReturns      = np.cumprod(1 + uncondPutReturnsScaled)
+cumUncondStraddleReturns = np.cumprod(1 + uncondStraddleReturnsScaled)
 
 
 dates4fig = pd.to_datetime(AggregateDates, format = '%Y%m%d')
@@ -362,12 +365,22 @@ dates4fig = pd.to_datetime(AggregateDates, format = '%Y%m%d')
 
 #Plot Equity Lines
 plt.figure()
-plt.plot(dates4fig, cumCallReturns, color = "blue", label = "Call Returns Gamma Timed")
-plt.plot(dates4fig, cumPutReturns, color = "red", label = "Put Returns Gamma Timed")
-plt.plot(dates4fig, cumStraddleReturns, c = "black", label = "Straddle Returns Gamma Timed")
+plt.plot(dates4fig, cumCallReturns, color = "blue", label = "Calls Only Gamma Timed")
+plt.plot(dates4fig, cumPutReturns, color = "red", label = "Puts Only Gamma Timed")
+plt.plot(dates4fig, cumStraddleReturns, c = "black", label = "Straddle Gamma Timed")
 plt.legend()
 plt.title("NAV for Gamma Timed Option Strategies")
 plt.ylabel("Cumulative Excess Returns")
+
+plt.figure()
+plt.plot(dates4fig, cumUncondCallReturns, color = "blue", label = "Calls Only")
+plt.plot(dates4fig, cumUncondPutReturns, color = "red", label = "Puts Only")
+plt.plot(dates4fig, cumUncondStraddleReturns, c = "black", label = "Straddles")
+plt.legend()
+plt.title("NAV for Unconditional Option Strategies")
+plt.ylabel("Cumulative Excess Returns")
+
+
 
 plt.figure()
 plt.plot(dates4fig, cumOverlayReturns, color = "blue", label = "Overlay Strategy")
