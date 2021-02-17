@@ -130,7 +130,12 @@ lag        = 0
 #Preallocate
 isRollover  = np.zeros((nDays, )) #
 disapearingOption = []
-disapearingOption_un = []
+
+disapearingOptionFront_un = []
+disapearingOptionBack_un = []
+
+
+
 callReturns = np.zeros((nDays, ))
 putReturns  = np.zeros((nDays, ))
 uncondCallReturns = np.zeros((nDays, ))
@@ -180,13 +185,16 @@ for i in np.arange(0, nDays - lag - 1):
             if len(nextDayCall_un) > 0:
                 uncondCallReturns[i + lag +1] = nextDayCall_un[0, 15] / currentDayCall_un[0, 15] - 1
             else:
-                disapearingOption_un.append(i + lag + 1)
+                disapearingOptionFront_un.append([nextDay, "next"])
         
             if len(nextDayPut_un) > 0:
                 uncondPutReturns[i + lag +1] = nextDayPut_un[0, 15] / currentDayPut_un[0, 15] - 1
             else:
-                disapearingOption_un.append(i + lag + 1)    
-    
+                disapearingOptionFront_un.append([nextDay, "next"])    
+                
+        else:
+            disapearingOptionFront_un.append([day, "current"])
+           
     else: #trade back
         backToTrade_un   = rightDayOptions[isBackExp * isATM, :]  #Back ATM Options
         if len(backToTrade_un) > 0:
@@ -198,13 +206,14 @@ for i in np.arange(0, nDays - lag - 1):
             if len(nextDayCall_un) > 0:
                 uncondCallReturns[i + lag +1] = nextDayCall_un[0, 15] / currentDayCall_un[0, 15] - 1
             else:
-                disapearingOption_un.append(i + lag + 1)
+                disapearingOptionBack_un.append([nextDay, "next"])
     
             if len(nextDayPut_un) > 0:
                 uncondPutReturns[i + lag +1] = nextDayPut_un[0, 15] / currentDayPut_un[0, 15] - 1
             else:
-                disapearingOption_un.append(i + lag + 1)    
-        
+                disapearingOptionBack_un.append([nextDay, "next"])    
+        else:
+            disapearingOptionBack_un.append([day, "current"]) 
             
         
     # Gamma Timed Strategy
@@ -213,33 +222,37 @@ for i in np.arange(0, nDays - lag - 1):
       
         if daysToMatFront > rollDay: #trade front month 
            frontToTrade = rightDayOptions[isFrontExp * isATM, :] #Front ATM Options 
-           currentDayCall, currentDayPut = getATMOptions(frontToTrade)
-           
-           #Grab next day options
-           nextDayCall = matchOption(currentDayCall, nextDayOptions, matchClosest = True)
-           nextDayPut  = matchOption(currentDayPut, nextDayOptions, matchClosest = True)
-    
-           #Call leg returns
-           if len(nextDayCall) > 0:    
-               callReturns[i + lag + 1] = nextDayCall[0, 15] / currentDayCall[0, 15] - 1
+           if len(frontToTrade) > 0:
+               currentDayCall, currentDayPut = getATMOptions(frontToTrade)
                
-               #Store information on calls traded
-               currentDayCallsTraded[i + lag, :]      = currentDayCall.reshape(22,)
-               nextDayCallsTraded[i + lag + 1, :]     = nextDayCall.reshape(22,)
-           else:
-               disapearingOption.append(i + lag + 1)
-           
-           #Put leg returns
-           if len(nextDayPut) > 0:
-               putReturns[i + lag + 1]  = nextDayPut[0, 15] / currentDayPut[0, 15] - 1
+               #Grab next day options
+               nextDayCall = matchOption(currentDayCall, nextDayOptions, matchClosest = True)
+               nextDayPut  = matchOption(currentDayPut, nextDayOptions, matchClosest = True)
+        
+               #Call leg returns
+               if len(nextDayCall) > 0:    
+                   callReturns[i + lag + 1] = nextDayCall[0, 15] / currentDayCall[0, 15] - 1
+                   
+                   #Store information on calls traded
+                   currentDayCallsTraded[i + lag, :]   = currentDayCall.reshape(22,)
+                   nextDayCallsTraded[i + lag + 1, :]  = nextDayCall.reshape(22,)
+               else:
+                   disapearingOption.append([nextDay, i + lag + 1, "front", "next", "call"])
                
-               #Store information on puts traded
-               currentDayPutsTraded[i + lag, :]     = currentDayPut.reshape(22,)
-               nextDayPutsTraded[i + lag + 1, :]    = nextDayPut.reshape(22,)
+               #Put leg returns
+               if len(nextDayPut) > 0:
+                   putReturns[i + lag + 1]  = nextDayPut[0, 15] / currentDayPut[0, 15] - 1
+                   
+                   #Store information on puts traded
+                   currentDayPutsTraded[i + lag, :]     = currentDayPut.reshape(22,)
+                   nextDayPutsTraded[i + lag + 1, :]    = nextDayPut.reshape(22,)
+               else:
+                   disapearingOption.append([nextDay, i + lag + 1, "front", "next", "put"])
+               
+               currentPos = 1 #add current position fla
+               
            else:
-               disapearingOption.append(i + lag + 1)
-           
-           currentPos = 1 #add current position flag
+              disapearingOption.append([day, i + lag, "front", "current", "no ATM options"])
            
             
     
@@ -250,7 +263,7 @@ for i in np.arange(0, nDays - lag - 1):
            if len(backToTrade) > 0:
                currentDayCall, currentDayPut = getATMOptions(backToTrade)
            else:
-               disapearingOption.append(i + lag)
+               disapearingOption.append([day, i + lag, "back", "current", "no ATM Options"])
                currentPos = 0
                continue
            
@@ -266,7 +279,7 @@ for i in np.arange(0, nDays - lag - 1):
                currentDayCallsTraded[i + lag, :]   = currentDayCall.reshape(22,)
                nextDayCallsTraded[i + lag + 1, :]  = nextDayCall.reshape(22,)
            else:
-               disapearingOption.append(i + lag + 1)
+               disapearingOption.append([nextDay, i + lag + 1, "back", "next", "call"])
            
            #Put leg returns
            if len(nextDayPut) > 0:
@@ -276,19 +289,21 @@ for i in np.arange(0, nDays - lag - 1):
                currentDayPutsTraded[i + lag , :]    = currentDayPut.reshape(22,)
                nextDayPutsTraded[i + lag + 1, :]    = nextDayPut.reshape(22,)
            else:
-               disapearingOption.append(i + lag + 1)
+               disapearingOption.append([nextDay, i + lag + 1, "back", "next", "call"])
            
            currentPos = 1 #add current position flag
            
                    
  
     if gammaSignal == True and currentPos == 1: #Keep the same position
+        
         #option shifts one day to become most recent 
         if len(nextDayCall) > 0 and len(nextDayPut) > 0:
             currentDayCall = nextDayCall
             currentDayPut  = nextDayPut  
         else:
             currentPos = 0
+            disapearingOption.append([day, i + lag, "existing", "shift", "existing position gone"])
             continue #jump to next iteration 
             
     
@@ -304,7 +319,7 @@ for i in np.arange(0, nDays - lag - 1):
             currentDayCallsTraded[i + lag, :]  = currentDayCall.reshape(22,)
             nextDayCallsTraded[i + lag, :]     = nextDayCall.reshape(22,)
         else:
-            disapearingOption.append(i + lag + 1)
+            disapearingOption.append([nextDay, i + lag + 1, "existing", "next", "call"])
         
         #Put leg returns
         if len(nextDayPut) > 0:
@@ -314,7 +329,7 @@ for i in np.arange(0, nDays - lag - 1):
             currentDayPutsTraded[i + lag + 1, :] = currentDayPut.reshape(22,)
             nextDayPutsTraded[i + lag + 1, :] = nextDayPut.reshape(22,)
         else:
-            disapearingOption.append(i + lag + 1)
+            disapearingOption.append([nextDay, i + lag + 1, "existing", "next", "call"])
         
         currentPos = 1 #add current position flag
        
@@ -328,6 +343,7 @@ for i in np.arange(0, nDays - lag - 1):
 straddleReturns = callReturns + putReturns
 uncondStraddleReturns = uncondCallReturns + uncondPutReturns
 
+#VIX Returns
 #Returns of underlying 
 #### TO BE REPLACED BY TOTAL RETURN INDEX RETURNS
 underlyingTotalReturns   = Underlying[1:] / Underlying[0:-1] - 1
@@ -380,14 +396,39 @@ plt.legend()
 plt.title("NAV for Unconditional Option Strategies")
 plt.ylabel("Cumulative Excess Returns")
 
-
-
 plt.figure()
 plt.plot(dates4fig, cumOverlayReturns, color = "blue", label = "Overlay Strategy")
 plt.plot(dates4fig, cumUnderlyingReturns, color = "black", label = "Passive Strategy")
 plt.legend()
 plt.title("Overlay Strategy vs Passive")
 plt.ylabel("Cumulative Excess Returns")
+
+#Investigate errors
+
+checkDate = disapearingOptionFront_un[0]
+checkDateOptions = OptionDataArr[(OptionDates == checkDate[0]), :]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
