@@ -135,7 +135,6 @@ disapearingOptionFront_un = []
 disapearingOptionBack_un = []
 
 
-
 callReturns = np.zeros((nDays, ))
 putReturns  = np.zeros((nDays, ))
 uncondCallReturns = np.zeros((nDays, ))
@@ -250,10 +249,15 @@ for i in np.arange(0, nDays - lag - 1):
                    disapearingOption.append([nextDay, i + lag + 1, "front", "next", "put"])
                
                currentPos = 1 #add current position fla
+               frontPos   = 1 #Signal trade is in front
+               backPos    = 0 #Signal trade is not in back month
                
            else:
               disapearingOption.append([day, i + lag, "front", "current", "no ATM options"])
-           
+              #remove all positions if no front available to trade
+              currentPos = 0
+              frontPos   = 0
+              backPos    = 0
             
     
         else: #trade back month
@@ -265,6 +269,8 @@ for i in np.arange(0, nDays - lag - 1):
            else:
                disapearingOption.append([day, i + lag, "back", "current", "no ATM Options"])
                currentPos = 0
+               frontPos   = 0
+               backPos    = 0 
                continue
            
            #Grab next day options
@@ -292,47 +298,91 @@ for i in np.arange(0, nDays - lag - 1):
                disapearingOption.append([nextDay, i + lag + 1, "back", "next", "call"])
            
            currentPos = 1 #add current position flag
-           
+           backPos  = 1 #Signal trade is in back month
+           frontPos = 0 #Signal trade is not in front
                    
  
     if gammaSignal == True and currentPos == 1: #Keep the same position
-        
-        #option shifts one day to become most recent 
-        if len(nextDayCall) > 0 and len(nextDayPut) > 0:
-            currentDayCall = nextDayCall
-            currentDayPut  = nextDayPut  
-        else:
-            currentPos = 0
-            disapearingOption.append([day, i + lag, "existing", "shift", "existing position gone"])
-            continue #jump to next iteration 
-            
+       
+        if frontPos == 1 and daysToMatFront < rollDay: #Front position need to be rolled
+           backToTrade   = rightDayOptions[isBackExp * isATM, :]  #Back ATM Options
+           
+           if len(backToTrade) > 0:
+               currentDayCall, currentDayPut = getATMOptions(backToTrade)
+           else:
+               disapearingOption.append([day, i + lag, "back", "current", "no ATM Options"])
+               currentPos = 0
+               frontPos   = 0
+               backPos    = 0 
+               continue
+           
+           #Grab next day options
+           nextDayCall = matchOption(currentDayCall, nextDayOptions, matchClosest = True)
+           nextDayPut  = matchOption(currentDayPut, nextDayOptions, matchClosest = True)
     
-        #Grab next day options
-        nextDayCall = matchOption(currentDayCall, nextDayOptions, matchClosest = True)
-        nextDayPut  = matchOption(currentDayPut, nextDayOptions, matchClosest = True)
-       
-        #Call leg returns
-        if len(nextDayCall) > 0:    
-            callReturns[i + lag + 1] = nextDayCall[0, 15] / currentDayCall[0, 15] - 1
+           #Call leg returns
+           if len(nextDayCall) > 0:    
+               callReturns[i + lag + 1] = nextDayCall[0, 15] / currentDayCall[0, 15] - 1
+               
+               #Store information on calls traded
+               currentDayCallsTraded[i + lag, :]   = currentDayCall.reshape(22,)
+               nextDayCallsTraded[i + lag + 1, :]  = nextDayCall.reshape(22,)
+           else:
+               disapearingOption.append([nextDay, i + lag + 1, "back", "next", "call"])
+           
+           #Put leg returns
+           if len(nextDayPut) > 0:
+               putReturns[i + lag + 1]  = nextDayPut[0, 15] / currentDayPut[0, 15] - 1
+               
+               #Store information on puts traded
+               currentDayPutsTraded[i + lag , :]    = currentDayPut.reshape(22,)
+               nextDayPutsTraded[i + lag + 1, :]    = nextDayPut.reshape(22,)
+           else:
+               disapearingOption.append([nextDay, i + lag + 1, "back", "next", "call"])
+           
+           currentPos = 1 #add current position flag
+           backPos    = 1 #Signal trade is in back month
+           frontPos   = 0 #Signal trade is not in front
+                  
+    
+        else: #No need to roll
             
-            #Store information on calls traded
-            currentDayCallsTraded[i + lag, :]  = currentDayCall.reshape(22,)
-            nextDayCallsTraded[i + lag, :]     = nextDayCall.reshape(22,)
-        else:
-            disapearingOption.append([nextDay, i + lag + 1, "existing", "next", "call"])
+            #option shifts one day to become most recent 
+            if len(nextDayCall) > 0 and len(nextDayPut) > 0:
+                currentDayCall = nextDayCall
+                currentDayPut  = nextDayPut  
+            else:
+                currentPos = 0
+                disapearingOption.append([day, i + lag, "existing", "shift", "existing position gone"])
+                continue #jump to next iteration 
+                
         
-        #Put leg returns
-        if len(nextDayPut) > 0:
-            putReturns[i + lag + 1]  = nextDayPut[0, 15] / currentDayPut[0, 15] - 1
+            #Grab next day options
+            nextDayCall = matchOption(currentDayCall, nextDayOptions, matchClosest = True)
+            nextDayPut  = matchOption(currentDayPut, nextDayOptions, matchClosest = True)
+           
+            #Call leg returns
+            if len(nextDayCall) > 0:    
+                callReturns[i + lag + 1] = nextDayCall[0, 15] / currentDayCall[0, 15] - 1
+                
+                #Store information on calls traded
+                currentDayCallsTraded[i + lag, :]  = currentDayCall.reshape(22,)
+                nextDayCallsTraded[i + lag + 1, :]     = nextDayCall.reshape(22,)
+            else:
+                disapearingOption.append([nextDay, i + lag + 1, "existing", "next", "call"])
             
-            #Store information on puts traded
-            currentDayPutsTraded[i + lag + 1, :] = currentDayPut.reshape(22,)
-            nextDayPutsTraded[i + lag + 1, :] = nextDayPut.reshape(22,)
-        else:
-            disapearingOption.append([nextDay, i + lag + 1, "existing", "next", "call"])
-        
-        currentPos = 1 #add current position flag
-       
+            #Put leg returns
+            if len(nextDayPut) > 0:
+                putReturns[i + lag + 1]  = nextDayPut[0, 15] / currentDayPut[0, 15] - 1
+                
+                #Store information on puts traded
+                currentDayPutsTraded[i + lag, :] = currentDayPut.reshape(22,)
+                nextDayPutsTraded[i + lag + 1, :] = nextDayPut.reshape(22,)
+            else:
+                disapearingOption.append([nextDay, i + lag + 1, "existing", "next", "call"])
+            
+            currentPos = 1 #add current position flag
+           
     elif gammaSignal == False:
         currentPos = 0 #No position if gamma signal is not there
     
@@ -409,19 +459,42 @@ checkDate = disapearingOptionFront_un[0]
 checkDateOptions = OptionDataArr[(OptionDates == checkDate[0]), :]
 
 
+#Compute performance
+callPerformance     = bt.ComputePerformance(callReturnsScaled, RfDaily, 0, 255)
+putPerformance      = bt.ComputePerformance(putReturnsScaled, RfDaily, 0, 255)
+straddlePerformance = bt.ComputePerformance(straddleReturnsScaled, RfDaily, 0, 255)
+
+#Construct Latex Table
+def constructPerformanceDf(performanceList, colNames, to_latex = True):
+    legend      = performanceList[0][0]
+    nStrategies = len(performanceList)
+    performanceMat = np.zeros((len(legend), nStrategies))
+    
+    for i in np.arange(0, nStrategies):
+        performanceMat[:, i]  = performanceList[i][1].reshape(-1,)
+            
+    performanceMat = np.vstack(performanceMat).astype(np.float)
+    performanceMat = np.round(performanceMat, decimals = 2) 
+    performanceMat  = np.concatenate((legend.reshape(-1, 1), performanceMat), axis = 1)
+    performanceDf   = pd.DataFrame.from_records(performanceMat, columns = colNames)
+
+    if to_latex == True:
+        print(performanceDf.to_latex(index=False))
+        
+    return performanceDf
+
+
+colNames = np.array(["statistic", "Calls Only", "Puts Only", "Straddle"])
+perfList = [callPerformance, putPerformance, straddlePerformance]
+test     = constructPerformanceDf(perfList, colNames = colNames, to_latex = True)
+
+
+sys.exit()
 
 
 
-
-
-
-
-
-
-
-
-
-
+day = 19981012
+dayOptions = OptionDataArr[OptionDates == day, :]
 
 
 
