@@ -13,8 +13,8 @@ import sys
 ## Aggregate Option Data to daily series
 
 ### SET WHICH ASSET TO BE IMPORTED #######################################################
-UnderlyingAssetName   = "VIX Index"
-UnderlyingTicker      = "VIX"
+UnderlyingAssetName   = "SPX Index"
+UnderlyingTicker      = "SPX"
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/CleanData/"
 ##########################################################################################
 
@@ -83,9 +83,23 @@ non_violating = np.isfinite(gamma)
 OptionDataTr  = OptionData.loc[non_violating, :]
 
 #Underlying data
-UnderlyingDates  = UnderlyingDataTr["Dates"].to_numpy()
-UnderlyingPrices = UnderlyingDataTr["Price"].to_numpy()
-UnderlyingVolume = UnderlyingDataTr["Volume"].to_numpy()
+UnderlyingDates     = UnderlyingDataTr["Dates"].to_numpy()
+UnderlyingPrices    = UnderlyingDataTr["Price"].to_numpy()
+UnderlyingVolume    = UnderlyingDataTr["Volume"].to_numpy()
+UnderlyingMarketCap = UnderlyingDataTr["Market Cap"].to_numpy()
+
+if UnderlyingTicker != "VIX": #Backfill market cap unless underlying is VIX
+    #Backfill Market Cap
+    UnderlyingReturns = bt.computeReturns(UnderlyingPrices) #Compute underlying returns
+    refInd     = int(np.nonzero(np.isfinite(UnderlyingMarketCap))[0][0]) #Find first finite value index
+    refVal     = UnderlyingMarketCap[refInd]     #Grab first finite value
+    refReturns = UnderlyingReturns[0:refInd + 1] #Grab returns up to and including first finite value
+    refCumRet  = np.cumprod(1 + refReturns)      #Compute cumulative returns up to first finite value
+    startVal   = refVal / refCumRet[-1]          #Compute starting point
+    fillSeries = startVal * refCumRet[0:-1]      #Create price series
+    UnderlyingMarketCap[0:refInd] = fillSeries   #Add filled market cap values
+
+
 
 #MA dollar volume
 lookback = 90
@@ -165,6 +179,7 @@ for i in np.arange(0, nOptionDays):
 aggregateData = np.concatenate((UniqueDates.reshape(nOptionDays, 1), netGamma, netGamma_alt, aggOpenInterest,\
                 netOpenInterest, deltaAdjOpenInterest, deltaAdjNetOpenInterest, aggVolume, deltaAdjVolume), axis = 1)    
 
+    
 #Save unsynced (to underlying) data for strategy use
 #transfrom to datafram
 #cols              = np.array(["Dates", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
@@ -178,141 +193,37 @@ aggregateData = np.concatenate((UniqueDates.reshape(nOptionDays, 1), netGamma, n
 UnderlyingDollarVolume  = UnderlyingPrices * UnderlyingVolume   
 UnderlyingData          = np.concatenate((UnderlyingDates.reshape(-1, 1), UnderlyingPrices.reshape(-1, 1),\
                                 UnderlyingVolume.reshape(-1, 1), UnderlyingDollarVolume.reshape(-1, 1),\
-                                (Rf*100).reshape(-1, 1), MAVolume.reshape(-1,1), MADollarVolume.reshape(-1,1)), axis = 1) #add price and volume 
+                                (Rf*100).reshape(-1, 1), MAVolume.reshape(-1,1), MADollarVolume.reshape(-1,1), UnderlyingMarketCap.reshape(-1, 1)), axis = 1) #add price and volume 
 
+    
+#Set columns for data frame
 if UnderlyingTicker == "VIX":
     UnderlyingData = np.concatenate((UnderlyingData, frontPrices.reshape(-1, 1), backPrices.reshape(-1, 1), frontVolume.reshape(-1, 1), backVolume.reshape(-1, 1)), axis = 1)
     
     cols = np.array(["Dates", UnderlyingTicker, UnderlyingTicker + " Volume", UnderlyingTicker + " Dollar Volume",\
-                 "LIBOR", "MAVolume", "MADollarVolume", "frontPrices", "backPrices", "frontVolume", "backVolume", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest",\
+                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "frontPrices", "backPrices", "frontVolume", "backVolume", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest",\
                      "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume"])
          
-         
-    # cols  = np.array(["Dates", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
-    #                     "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingTicker, UnderlyingTicker + " Volume",\
-    #                         UnderlyingTicker + " Dollar Volume", "LIBOR", "MAVolume", "MADollarVolume", "frontPrices", "backPrices", "frontVolume", "backVolume"])
 else:
     cols = np.array(["Dates", UnderlyingTicker, UnderlyingTicker + " Volume", UnderlyingTicker + " Dollar Volume",\
-                 "LIBOR", "MAVolume", "MADollarVolume", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest",\
+                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest",\
                      "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume"])  
     
-    # cols = np.array(["Dates", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
-    #                     "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingTicker, UnderlyingTicker + " Volume",\
-    #                         UnderlyingTicker + " Dollar Volume", "LIBOR", "MAVolume", "MADollarVolume"])
 
-    
-aggregateDataSynced = bt.SyncData(UnderlyingData, aggregateData, removeNoneOverlapping = True)    
-    
+#Sync Data of underlying and aggregate
+aggregateDataSynced = bt.SyncData(UnderlyingData, aggregateData, removeNonOverlapping = True)    
 
-# nRows = np.size(UnderlyingDates)
-# nCols = np.size(aggregateData, 1)
-
-# syncMat    = np.zeros((nRows, nCols))
-# date_bool  = np.in1d(UnderlyingDates, UniqueDates) #Dates where option data is recorded
-# date_shift = np.concatenate((date_bool[1:], np.ones((1,))), axis = 0) == 1 
-
-# syncMat[date_bool, :] = aggregateData
-# syncMat[(date_bool == 0), 1:] = syncMat[(date_shift == 0), 1:]    
-# syncMat[(date_bool == 0), 0]  = UnderlyingDates[(date_bool == 0)]
-
-#aggregateData = np.concatenate((syncMat, UnderlyingPrices.reshape(nRows, 1),\
-#                                UnderlyingVolume.reshape(nRows, 1), UnderlyingDollarVolume.reshape(nRows, 1)), axis = 1) #add price and volume      
-    
-#transfrom to datafram
-#cols        = np.array(["Dates", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
-#                        "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingTicker, UnderlyingTicker + " Volume",\
-#                            UnderlyingTicker + " Dollar Volume"])
+#Transform to data frame
+aggregateDf  =  pd.DataFrame.from_records(aggregateDataSynced, columns = cols)
+aggregateDf  = aggregateDf.iloc[lookback:, :] #Kill lookback period
 
 
-
-    
-aggregateDf =  pd.DataFrame.from_records(aggregateDataSynced, columns = cols)
-
-
-#aggregateDf["LIBOR"]    = Rf*100  #add LIBOR
-#aggregateDf["Rf Daily"] = RfDaily #add daily Rf
-#aggregateDf["MAVolume"] = MAVolume
-#aggregateDf["MADollarVolume"] = MADollarVolume
-
-# if UnderlyingTicker == "VIX":
-#     aggregateDf["frontPrices"] = frontPrices
-#     aggregateDf["backPrices"]  = backPrices
-#     aggregateDf["frontVolume"] = frontVolume
-#     aggregateDf["backVolume"]  = backVolume
-
-aggregateDf  = aggregateDf.iloc[lookback:, :]
-
-
+sys.exit()
 ## EXPORT DATA TO EXCEL ##
 saveloc = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
 aggregateDf.to_csv(path_or_buf = saveloc + UnderlyingTicker + "AggregateData.csv" , index = False)
 
 
-
-
-
-
-
-
-sys.exit()
-
-
-
-
-
-
-
-
-
-
-
-
-returns   = np.concatenate((np.zeros((1,)), UnderlyingPrices[1:] / UnderlyingPrices[0:-1] - 1), axis = 0)
-dates4fig = pd.to_datetime(aggregateData[:, 0], format = '%Y%m%d')
-
-##################################
-# Plots #
-#Gamma Exposure Plot
-lag = 1 
-plt.figure()
-plt.scatter(aggregateData[0:-lag, 1], np.abs(returns[lag:]), color = "blue", s = 3)
-plt.title("Gamma Exposure vs Absolute Returns, Lag = " + str(lag) + " Day(s)")
-plt.xlabel("Market Maker Net Gamma Exposure")
-plt.ylabel("Absolute Returns")
-
-lag = 1 
-plt.figure()
-plt.scatter(aggregateData[0:-lag, 1], returns[lag:], color = "blue", s = 3)
-plt.title("Gamma Exposure vs Underlying Returns, Lag = " + str(lag) + " Day(s)")
-plt.xlabel("Market Maker Net Gamma Exposure")
-plt.ylabel("Underlying Returns")
-
-lag = 1 
-plt.figure()
-plt.scatter(aggregateData[0:-lag, 1], returns[lag:]**2, color = "blue", s = 3)
-plt.title("Gamma Exposure vs Underlying Squared Returns, Lag = " + str(lag) + " Day(s)")
-plt.xlabel("Market Maker Net Gamma Exposure")
-plt.ylabel("Squared Returns")
-
-
-
-
-#Open Interest
-plt.figure()
-plt.plot(dates4fig, aggregateData[:, 3], label = "Aggregate Open Interest")
-plt.title("Aggregate Open Interest, " + str(UnderlyingAssetName) + " Options")
-plt.ylabel("Net Daily Open Interest")
-
-
-#Delta Adjusted Volume
-plt.figure()
-plt.plot(dates4fig, aggregateData[:, -1], label = "Delta Adjusted Volume")
-plt.title("Delta Adjusted Volume, " + str(UnderlyingAssetName) + " Options")
-plt.ylabel("Delta Adjusted Volume ($)")
-    
-    
-    
-    
     
     
     

@@ -19,14 +19,15 @@ loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/"
 ##########################################################################################
 
 #Load data
-OptionData  = pd.read_csv(loadloc + "OptionData/" + UnderlyingTickerShort + "OptionData.csv")
-SpotData    = pd.read_excel(loadloc + "SpotData/SpotData.xlsx", sheet_name = "Price")
-VolumeData  = pd.read_excel(loadloc + "SpotData/SpotData.xlsx", sheet_name = "Volume")
+OptionData    = pd.read_csv(loadloc + "OptionData/" + UnderlyingTickerShort + "OptionData.csv")
+SpotData      = pd.read_excel(loadloc + "SpotData/SpotData.xlsx", sheet_name = "Price")
+VolumeData    = pd.read_excel(loadloc + "SpotData/SpotData.xlsx", sheet_name = "Volume")
+MarketCapData = pd.read_excel(loadloc + "SpotData&SpotData.xlsx", sheet_name = "MarketCap")
 
 #Grab data from right underlying
-SpotData   = SpotData[["Dates", UnderlyingTicker]]
-VolumeData = VolumeData[["Dates", UnderlyingTicker]]
-
+SpotData      = SpotData[["Dates", UnderlyingTicker]]
+VolumeData    = VolumeData[["Dates", UnderlyingTicker]]
+MarketCapData = MarketCapData[["Dates", UnderlyingTicker]]
 
 print(OptionData.head())
 print(OptionData.tail())
@@ -37,8 +38,12 @@ datesTime   = pd.to_datetime(datesSeries, format = '%d.%m.%Y')
 dayCount    = bt.dayCount(datesTime) #get ndays between dates
 
 UnderlyingDates  = bt.yyyymmdd(datesTime) #get desired date format
-UnderlyingPrices = SpotData[UnderlyingTicker].to_numpy()
-UnderlyingVolume = VolumeData[UnderlyingTicker].to_numpy() 
+
+#Remove dates and collect underlying data as numpy
+UnderlyingPrices    = SpotData[UnderlyingTicker].to_numpy()
+UnderlyingVolume    = VolumeData[UnderlyingTicker].to_numpy() 
+UnderlyingMarketCap = MarketCapData[UnderlyingTicker].to_numpy()
+
 
 tic = time.time()
 #Clean Option Data
@@ -107,9 +112,10 @@ EndInd   = int(EndInd)
 
 #Return Trimmed Values of Underlying
 #Store and return as "All" for return and sync with gamma exposure later
-UnderlyingDatesAll  = UnderlyingDates[StartInd:EndInd + 1]
-UnderlyingPricesAll = UnderlyingPrices[StartInd:EndInd + 1]
-UnderlyingVolumeAll = UnderlyingVolume[StartInd:EndInd + 1]
+UnderlyingDatesAll     = UnderlyingDates[StartInd:EndInd + 1]
+UnderlyingPricesAll    = UnderlyingPrices[StartInd:EndInd + 1]
+UnderlyingVolumeAll    = UnderlyingVolume[StartInd:EndInd + 1]
+UnderlyingMarketCapAll = UnderlyingMarketCap[StartInd:EndInd + 1]
 
 #Check if all Option Dates are in Underlying Sample
 if np.sum(np.in1d(UniqueDates, UnderlyingDates)) != np.size(UniqueDates):
@@ -218,13 +224,12 @@ cols  = np.array(["date", "exdate", "cp_flag", "strike_price", "best_bid", "best
                            "forward_price", "mid_price", "european_flag", "OTM_forward_flag", "OTM_flag", "spot_price", "ATMF_flag", "ATM_flag"])
 
 
-UnderlyingData     = np.concatenate((UnderlyingDatesAll.reshape(np.size(UnderlyingDatesAll), 1), UnderlyingPricesAll.reshape(np.size(UnderlyingPricesAll), 1),\
-                                     UnderlyingVolumeAll.reshape(np.size(UnderlyingVolumeAll), 1)), axis = 1)
+UnderlyingData     = np.concatenate((UnderlyingDatesAll.reshape(-1, 1), UnderlyingPricesAll.reshape(-1, 1),\
+                                     UnderlyingVolumeAll.reshape(-1, 1), UnderlyingMarketCapAll.reshape(-1, 1)), axis = 1)
 
-OptionDataClean         = pd.DataFrame.from_records(OptionDataTr, columns = cols)
-UnderlyingData          = pd.DataFrame.from_records(UnderlyingData, columns = ["Dates", "Price", "Volume"])
-
-
+OptionDataClean    = pd.DataFrame.from_records(OptionDataTr, columns = cols)
+UnderlyingData     = pd.DataFrame.from_records(UnderlyingData, columns = ["Dates", "Price", "Volume", "Market Cap"])
+    
 
 #Save as csv file
 loc = "C:/Users/ekblo/Documents/MScQf/Masters Thesis/Data/CleanData/"
