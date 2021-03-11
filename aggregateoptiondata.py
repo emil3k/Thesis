@@ -13,8 +13,8 @@ import sys
 ## Aggregate Option Data to daily series
 
 ### SET WHICH ASSET TO BE IMPORTED #######################################################
-UnderlyingAssetName   = "SPX Index"
-UnderlyingTicker      = "SPX"
+UnderlyingAssetName   = "SPY Index"
+UnderlyingTicker      = "SPY"
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/CleanData/"
 ##########################################################################################
 
@@ -101,11 +101,16 @@ if UnderlyingTicker != "VIX": #Backfill market cap unless underlying is VIX
 
 
 
+
+
+
 #MA dollar volume
 lookback = 90
 nDays          = np.size(UnderlyingVolume)
 MADollarVolume = np.zeros((nDays,))
 MAVolume       = np.zeros((nDays,))
+ILLIQ          = np.zeros((nDays,))
+UnderlyingReturns = bt.computeReturns(UnderlyingPrices)
 
 for i in np.arange(lookback, nDays):
     #grab volume
@@ -115,13 +120,17 @@ for i in np.arange(lookback, nDays):
     else:
         volume = UnderlyingVolume[i - lookback:i] 
     
-    price  = UnderlyingPrices[i - lookback:i] #grab price
+    price         = UnderlyingPrices[i - lookback:i] #grab price
+    returns       = UnderlyingReturns[i - lookback:i] #grab returns
+    abs_returns   = np.abs(returns)
     dollar_volume = volume*price #compute dollar volume
+    daily_illiq   = abs_returns / dollar_volume
     
+    ILLIQ[i]          = np.mean(daily_illiq)
     MAVolume[i]       = np.mean(volume)
     MADollarVolume[i] = np.mean(dollar_volume)
 
-
+    
 #Option Dates
 OptionDates      = OptionDataTr["date"].to_numpy()
 UniqueDates      = np.unique(OptionDates)
@@ -193,7 +202,7 @@ aggregateData = np.concatenate((UniqueDates.reshape(nOptionDays, 1), netGamma, n
 UnderlyingDollarVolume  = UnderlyingPrices * UnderlyingVolume   
 UnderlyingData          = np.concatenate((UnderlyingDates.reshape(-1, 1), UnderlyingPrices.reshape(-1, 1),\
                                 UnderlyingVolume.reshape(-1, 1), UnderlyingDollarVolume.reshape(-1, 1),\
-                                (Rf*100).reshape(-1, 1), MAVolume.reshape(-1,1), MADollarVolume.reshape(-1,1), UnderlyingMarketCap.reshape(-1, 1)), axis = 1) #add price and volume 
+                                (Rf*100).reshape(-1, 1), MAVolume.reshape(-1,1), MADollarVolume.reshape(-1,1), UnderlyingMarketCap.reshape(-1, 1), ILLIQ.reshape(-1,1)), axis = 1) #add price and volume 
 
     
 #Set columns for data frame
@@ -202,12 +211,12 @@ if UnderlyingTicker == "VIX":
     
     cols = np.array(["Dates", UnderlyingTicker, UnderlyingTicker + " Volume", UnderlyingTicker + " Dollar Volume",\
                  "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "frontPrices", "backPrices", "frontVolume", "backVolume", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest",\
-                     "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume"])
+                     "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolume", "deltaAdjVolume"])
          
 else:
     cols = np.array(["Dates", UnderlyingTicker, UnderlyingTicker + " Volume", UnderlyingTicker + " Dollar Volume",\
-                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest",\
-                     "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume"])  
+                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "ILLIQ", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest",\
+                     "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolume", "deltaAdjVolume"])  
     
 
 #Sync Data of underlying and aggregate
@@ -216,7 +225,6 @@ aggregateDataSynced = bt.SyncData(UnderlyingData, aggregateData, removeNonOverla
 #Transform to data frame
 aggregateDf  =  pd.DataFrame.from_records(aggregateDataSynced, columns = cols)
 aggregateDf  = aggregateDf.iloc[lookback:, :] #Kill lookback period
-
 
 sys.exit()
 ## EXPORT DATA TO EXCEL ##
