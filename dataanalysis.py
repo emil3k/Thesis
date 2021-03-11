@@ -12,8 +12,8 @@ import statsmodels.api as sm
 import sys
 
 ### SET WHICH ASSET TO BE IMPORTED #######################################################
-UnderlyingAssetName   = "VIX Index"
-UnderlyingTicker      = "VIX"
+UnderlyingAssetName   = "SPX Index"
+UnderlyingTicker      = "SPX"
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
 prefColor             = '#0504aa'
 ##########################################################################################
@@ -97,6 +97,12 @@ for i in np.arange(0, nSplits):
     netGammaSPXTr   = SPXDataTr["netGamma"].to_numpy()
     netGammaSPX     = SPXData["netGamma"].to_numpy()
     
+    #Extract market cap
+    marketCap = data["Market Cap"].to_numpy()
+    marketCapSPX = SPXData["Market Cap"].to_numpy()
+    
+ 
+    
     #Investigate proporties of gamma
     def computeNegGammaStreaks(netGamma, UnderlyingTicker = None , hist = True, color = '#0504aa', histtype = 'stepfilled', periodLabel = " "):
         nDays  = np.size(netGamma)
@@ -153,8 +159,7 @@ for i in np.arange(0, nSplits):
     [legend, gammaStats]    = computeGammaStats(netGamma, UnderlyingTicker, printTable = True, hist = True, periodLabel = periodLabel)
     [legend, gammaStatsSPX] = computeGammaStats(netGammaSPX, "SPX", hist = True, color = "red", periodLabel = periodLabel)
     
-    
-    
+   
     #Store in dataframe
     gammaStatsDf = pd.DataFrame()
     gammaStatsDf["Statistics"]       = legend
@@ -169,9 +174,14 @@ for i in np.arange(0, nSplits):
     lag = 1
     netGamma_norm    = (netGamma - np.mean(netGamma)) / np.std(netGamma)
     netGammaSPX_norm = (netGammaSPXTr - np.mean(netGammaSPXTr)) / np.std(netGammaSPXTr)
-    
-    dataToSmooth     = np.concatenate((netGamma.reshape(nDays, 1), netGammaSPXTr.reshape(nDays, 1),\
-                       netGamma_norm.reshape(nDays, 1), netGammaSPX_norm.reshape(nDays, 1)  ), axis = 1)
+   
+    netGamma_scaled    = netGamma / marketCap
+    netGammaSPX_scaled = netGammaSPXTr / marketCap
+   
+    #Collect gamma measures to smooth
+    dataToSmooth     = np.concatenate((netGamma.reshape(-1, 1), netGammaSPXTr.reshape(-1, 1),\
+                       netGamma_norm.reshape(-1, 1), netGammaSPX_norm.reshape(-1, 1), netGamma_scaled.reshape(-1,1), \
+                       netGammaSPX_scaled.reshape(-1,1) ), axis = 1)
     
     #Smooth data and plot    
     def smoothData(dataToSmooth, dates, lookback, plotResults = False, UnderlyingTicker = ""):
@@ -193,25 +203,25 @@ for i in np.arange(0, nSplits):
              
         if plotResults == True:
             plt.figure()
-            plt.plot(smoothDates, smoothData[:, 2], color = '#0504aa', label = UnderlyingTicker + " (Normalized)")
+            plt.plot(smoothDates, smoothData[:, -2], color = '#0504aa', label = UnderlyingTicker + "")
             if UnderlyingTicker != "SPX":
-                plt.plot(smoothDates, smoothData[:, 3], color = "black", label = "SPX")
-            plt.title(str(lookback) + "-day MovAvg Net Gamma Exposure" + " (" + periodLabel + ")")
-            plt.ylabel("Net Gamma Exposure")
+                plt.plot(smoothDates, smoothData[:, -1], color = "black", label = "SPX")
+            plt.title(str(lookback) + "-day MA Net Gamma Exposure" + " (" + periodLabel + ")")
+            plt.ylabel("Net Gamma Exposure / Market Cap")
             plt.legend()
             plt.show()
     
         return smoothData, smoothDates
     
     #Plot gamma scatter plots and normalized time series
-    def gammaPlots(netGamma, Returns, lag, UnderlyingTicker = "", periodLabel = ""):
-        netGamma_norm    = (netGamma - np.mean(netGamma)) / np.std(netGamma)
+    def gammaPlots(netGamma, netGamma_scaled, Returns, lag, UnderlyingTicker = "", periodLabel = ""):
         
-        #Normalized
+        
+        #Market Cap Scaled
         plt.figure()
-        plt.plot(dates4fig, netGamma_norm, color = '#0504aa', label = UnderlyingTicker + " (Normalized)")
+        plt.plot(dates4fig, netGamma_scaled, color = '#0504aa')
         plt.title("MM Net Gamma Exposure for " + UnderlyingTicker + " (" + periodLabel + ")")
-        plt.ylabel("Net Gamma Exposure")
+        plt.ylabel("Net Gamma Exposure / Market Cap")
         plt.legend()
         plt.show()
               
@@ -232,13 +242,13 @@ for i in np.arange(0, nSplits):
             plt.xlabel("Market Maker Net SPX Gamma Exposure")
             plt.legend()
     
-            
+      
+       
     lookback = 100
     [smoothGamma, smoothDates] = smoothData(dataToSmooth, dates, lookback, plotResults = True, UnderlyingTicker = UnderlyingTicker)
-    gammaPlots(netGamma, Returns, lag = 1, UnderlyingTicker = UnderlyingTicker, periodLabel = periodLabel)
+    gammaPlots(netGamma, netGamma_scaled, Returns, lag = 1, UnderlyingTicker = UnderlyingTicker, periodLabel = periodLabel)
     
-    
-    
+    ######### BUCKETS ##############
     #plot Buckets function
     #returns should be same format as netGamma (i.e 0 in first row)
     def plotBucketStats(netGamma, Returns, lag, nBuckets, periodLabel = " "):
@@ -303,23 +313,33 @@ for i in np.arange(0, nSplits):
     
     #VIX Returns for SPX gamma
     VIXandSPX = plotBucketStats(netGammaSPX, Returns, lag = 1, nBuckets = 6, periodLabel = "SPX Gamma")
-
+    
+    ###################################
+    
     
     ## Open Interest and Volume Investigation
     #Moving average smoothing for visualizations
+   
+    deltaAdjNetOpenInterest = data["deltaAdjOpenInterest"].to_numpy()   
+    deltaAdjNetOpenInterest_scaled = (deltaAdjNetOpenInterest * UnderlyingPrice) / marketCap
+    
+    
     smoothCols = np.array(["aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
                             "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingTicker + " Volume",\
                                 UnderlyingTicker + " Dollar Volume"])
     
     dataToSmooth = data[smoothCols].to_numpy()
+    dataToSmooth = np.concatenate((dataToSmooth, deltaAdjNetOpenInterest_scaled.reshape(-1,1)), axis = 1) #add deltaadjusted open interest scaled
+    
+    
     lookback = 100
     [aggregateSmooth, smoothDates] = smoothData(dataToSmooth, dates, lookback)
     
     
     ## Volume and open interest over time
     plt.figure()
-    plt.plot(smoothDates, aggregateSmooth[:, -3] / 1000000, color = '#0504aa', label = "Delta Adjusted Option Volume")
-    plt.plot(smoothDates, aggregateSmooth[:, -2]/ 1000000, color = "black", label = "Volume " + UnderlyingTicker)
+    plt.plot(smoothDates, aggregateSmooth[:, 6] / 1000000, color = '#0504aa', label = "Delta Adjusted Option Volume")
+    plt.plot(smoothDates, aggregateSmooth[:, 7]/ 1000000, color = "black", label = "Volume " + UnderlyingTicker)
     plt.title(str(lookback) + "-day MA Volume for " + UnderlyingTicker + " and "+ UnderlyingTicker + " Options" + " (" + periodLabel + ")")
     plt.ylabel("Volume (log scale)")
     plt.legend()
@@ -333,9 +353,27 @@ for i in np.arange(0, nSplits):
     plt.legend()
     #plt.yscale("log")
     
+    ## Volume and open interest over time
+    plt.figure()
+    plt.plot(smoothDates, aggregateSmooth[:, -1] , color = '#0504aa', label = "Delta Adjusted Open Interest")
+    plt.title(str(lookback) + "-day MA Net Open Interest for " + UnderlyingTicker + " (" + periodLabel + ")")
+    plt.ylabel("Net Open Interest (in USD, Market Cap Adjusted)")
+    plt.legend()
+    
+   
     
     
-    ## Reverals
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    ############# REVERSALS #################
+    
     def computeReversalBars(netGamma, Returns, lag = 1):
         isNegGamma     = (netGamma[0:-lag] < 0)
         sameDayReturns = Returns[0:-lag]
@@ -359,6 +397,7 @@ for i in np.arange(0, nSplits):
     lag   = 1
     bars  = computeReversalBars(netGamma, Returns, lag = lag)
     ticks = np.array(["Neg-Neg", "Neg-Pos", "Pos-Neg", "Pos-Pos"])
+    
     
     ## Unconditional Reversals
     # Uncond. on Gamma
