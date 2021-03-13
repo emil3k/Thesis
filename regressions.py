@@ -10,7 +10,9 @@ import statsmodels.api as sm
 import Backtest as bt
 import matplotlib.pyplot as plt
 from scipy.stats import skew, kurtosis
+import seaborn as sn
 import sys
+from sklearn.linear_model import LassoCV
 #Regressions
 
 ### SET IMPORT PARAMS ####################################################################
@@ -57,7 +59,7 @@ for i in np.arange(0, nAssets):
        
        #Store
        TotalReturns.append(ret)
-       XsReturns.append(ret)
+       XsReturns.append(xsret)
     
     else:
        frontPrices    = data["frontPrices"].to_numpy()
@@ -98,10 +100,10 @@ def plotResiduals(residuals, lag = None, ticker = None, color = '#0504aa', histt
     ax.text(0.60, 0.95, textstr, transform=ax.transAxes, fontsize=14, verticalalignment='top', bbox=props)
     plt.show() 
     
-    
+
 # #Set up Regressions
-lagList = [1, 2, 5, 10]
-#lagList = [1]
+#lagList = [1, 2, 5, 10]
+lagList = [1]
 nRegs   = len(lagList)
 hist    = True
 scatter = True
@@ -111,12 +113,29 @@ for j in np.arange(0, len(UnderlyingTicker)):
     ticker   = UnderlyingTicker[j]
     data     = AggregateData[j]
     xsret    = XsReturns[j]
-    netGamma = data["netGamma"].to_numpy()
-    netGamma_norm = (netGamma - np.mean(netGamma)) / np.std(netGamma)
     
+    #Compute Independent Variable Time Series
+    #Grab necessary data
+    netGamma       = data["netGamma"].to_numpy()
+    marketCap      = data["Market Cap"].to_numpy()
     MAdollarVolume = data["MADollarVolume"].to_numpy() 
-    adjNetGamma    = netGamma / MAdollarVolume 
-    adjNetGamma_norm = (adjNetGamma - np.mean(adjNetGamma)) / np.std(adjNetGamma)
+    
+    #Net Gamma Measures
+    netGamma_norm   = (netGamma - np.mean(netGamma)) / np.std(netGamma)
+    netGamma_scaled = netGamma / marketCap
+    netGamma_barbon = netGamma / MAdollarVolume
+    
+    #Control Variables
+    IVOL         = data["IVOL"].to_numpy()
+    AbsXsReturns = np.abs(xsret)
+    
+    #Concatenate Independent variables to X matrix
+    X = np.concatenate((netGamma_scaled.reshape(-1,1), IVOL.reshape(-1,1), AbsXsReturns.reshape(-1,1)), axis = 1)
+    IndependentVarDf = pd.DataFrame.from_records(X, columns = ["net Gamma", "IVOL", "Abs. Xs Returns"])
+    corrMatrix     = IndependentVarDf.corr()
+    sn.heatmap(corrMatrix, annot = True)
+
+    #IndependentVariableCorr = 
     
     regResults = []
     
@@ -125,10 +144,12 @@ for j in np.arange(0, len(UnderlyingTicker)):
         y      = np.abs(xsret[lag:])
         nObs   = np.size(y)
         
-        X_raw  = adjNetGamma_norm[0:-lag]
-        X_sqrd = adjNetGamma_norm[0:-lag]**2
-        X      = np.concatenate((X_raw.reshape(nObs, 1), X_sqrd.reshape(nObs, 1)), axis = 1)
-        X      = sm.add_constant(X)
+        #X_raw  = adjNetGamma_norm[0:-lag]
+        #X_sqrd = adjNetGamma_norm[0:-lag]**2
+        #X      = np.concatenate((X_raw.reshape(nObs, 1), X_sqrd.reshape(nObs, 1)), axis = 1)
+       
+        X      = X[0:-lag, :]       #Lag matrix accordingly 
+        X      = sm.add_constant(X) #add constant
     
         reg       = sm.OLS(y, X).fit()
         coefs     = np.round(reg.params, decimals = 5)
@@ -138,30 +159,41 @@ for j in np.arange(0, len(UnderlyingTicker)):
         
         legend  = np.array(["statistic", "coefficient", "t stats", "p-values", "r_squared"])
         alpha   = np.array(["alpha", coefs[0], tvals[0], pvals[0], r_squared])
-        b1      = np.array(["b1", coefs[1], tvals[1], pvals[1], " "])
-        b2      = np.array(["b2", coefs[2], tvals[2], pvals[2], " "])
+        b1      = np.array(["netGamma", coefs[1], tvals[1], pvals[1], " "])
+        b2      = np.array(["IVOL", coefs[2], tvals[2], pvals[2], " "])
+        b3      = np.array(["AbsXsRet", coefs[3], tvals[3], pvals[3], " "])
         
         lag_df = pd.DataFrame()
         
-        if i == 0:
+        #LASSO FOR Parameter selection
+        LassoFeature = LassoCV(n_alphas = 100, fit_intercept = False, normalize = False, cv = 10, \
+                              max_iter = 10000, tol = 1e-3)
+        LassoFeature.fit(X, y)
+        LassoCoefs = LassoFeature.coef_
+        isImportantFeatures = (LassoCoefs != 0) 
+        
+        
+        if i == 0: #First Data Frame
             lag_df["Statistic(Lag = " + str(lag) + ")"] = legend
-            lag_df["alpha (Lag = " + str(lag) + ")"]  = alpha
-            lag_df["B1 (Lag = " + str(lag) + ")"] = b1
-            lag_df["B2 (Lag = " + str(lag) + ")"] = b2 
+            lag_df["alpha (Lag = " + str(lag) + ")"]    = alpha
+            lag_df["netGamma (Lag = " + str(lag) + ")"] = b1
+            lag_df["IVOL (Lag = " + str(lag) + ")"]     = b2
+            lag_df["AbsXsRet (Lag = " + str(lag) + ")"] = b3 
         else:
-            lag_df["alpha (Lag = " + str(lag) + ")"] = alpha
-            lag_df["B1 (Lag = " + str(lag) + ")"] = b1 
-            lag_df["B2 (Lag = " + str(lag) + ")"] = b2 
+            lag_df["alpha (Lag = " + str(lag) + ")"]    = alpha
+            lag_df["netGamma (Lag = " + str(lag) + ")"] = b1 
+            lag_df["IVOL (Lag = " + str(lag) + ")"]     = b2 
+            lag_df["AbsXsRet (Lag = " + str(lag) + ")"] = b3 
         
         regResults.append(lag_df)
         
         if scatter == True:
-            x        = np.linspace(np.min(X_raw), np.max(X_raw), np.size(X_raw))
-            reg_line = coefs[0] + coefs[1] * x + coefs[2]*x**2
+            x        = np.linspace(np.min(X[:, 1]), np.max(X[:, 1]), np.size(X[:, 1]))
+            reg_line = coefs[0] + coefs[1] * x #+ coefs[2]*x**2
             
             fig, ax = plt.subplots()
             
-            ax.scatter(X_raw, y, color = '#0504aa', s = 0.5)
+            ax.scatter(X[:, 1], y, color = '#0504aa', s = 0.5)
             ax.plot(x, reg_line, color = "red", alpha = 0.5)
             fig.suptitle("Absolute Returns vs Net Gamma Exposure (normalized)")
             ax.set_xlabel("Net Gamma Exposure (Normalized)")
