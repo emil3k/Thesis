@@ -13,8 +13,8 @@ import sys
 ## Aggregate Option Data to daily series
 
 ### SET WHICH ASSET TO BE IMPORTED #######################################################
-UnderlyingAssetName   = "SPY Index"
-UnderlyingTicker      = "SPY"
+UnderlyingAssetName   = "SPX Index"
+UnderlyingTicker      = "SPX"
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/CleanData/"
 ##########################################################################################
 
@@ -54,7 +54,6 @@ daycount    = bt.dayCount(datesTime)
 Rf          = RfTr["US0003M Index"].to_numpy() / 100 #Adjust to pct.points
 RfDaily     = np.zeros((np.size(RfTr, 0), ))
 RfDaily[1:] = Rf[0:-1] * daycount[1:]/360 
-
 
 #VIX Futures
 if UnderlyingTicker == "VIX":
@@ -142,17 +141,26 @@ delta        = OptionDataTr["delta"].to_numpy()
 openInterest = OptionDataTr["open_interest"].to_numpy()
 volume       = OptionDataTr["volume"].to_numpy()
 callFlag     = OptionDataTr["cp_flag"].to_numpy()
-
+impliedVol   = OptionDataTr["impl_volatility"]
+strikes      = OptionDataTr["strike_price"]
+prices       = OptionDataTr["mid_price"]
+OTMFlag      = OptionDataTr["OTM_flag"]
 
 #Compute timeseries of daily aggregate statistics
 netGamma                = np.zeros((nOptionDays, 1))
 netGamma_alt            = np.zeros((nOptionDays, 1))
+callGamma               = np.zeros((nOptionDays, 1))
+putGamma                = np.zeros((nOptionDays, 1))
 aggOpenInterest         = np.zeros((nOptionDays, 1))
 netOpenInterest         = np.zeros((nOptionDays, 1))
 deltaAdjOpenInterest    = np.zeros((nOptionDays, 1))
 deltaAdjNetOpenInterest = np.zeros((nOptionDays, 1))
 aggVolume               = np.zeros((nOptionDays, 1))
 deltaAdjVolume          = np.zeros((nOptionDays, 1))
+IVOL                    = np.zeros((nOptionDays, 1))
+weightedIVOL            = np.zeros((nOptionDays, 1))
+
+
 
 for i in np.arange(0, nOptionDays):
     day = UniqueDates[i] #grab day
@@ -164,12 +172,18 @@ for i in np.arange(0, nOptionDays):
     rel_delta        = delta[isRightDay]
     rel_openInterest = openInterest[isRightDay]
     rel_volume       = volume[isRightDay]
+    rel_impliedVol   = impliedVol[isRightDay]
+    rel_prices       = prices[isRightDay]
+    rel_strikes      = strikes[isRightDay]
+    rel_OTMFlag      = OTMFlag[isRightDay]
     
     #Gamma Exposure
     rel_gamma_call  = rel_gamma[rel_callFlag == 1] * rel_openInterest[rel_callFlag == 1]*100
     rel_gamma_put   = rel_gamma[rel_callFlag == 0] * rel_openInterest[rel_callFlag == 0]*100
     netGamma[i]     = np.sum(rel_gamma_call) - np.sum(rel_gamma_put)
     netGamma_alt[i] = np.sum(rel_gamma_call) + np.sum(rel_gamma_put)
+    callGamma[i]    = np.sum(rel_gamma_call)
+    putGamma[i]     = np.sum(rel_gamma_put)
     
     #Agg and net open interest
     aggOpenInterest[i]  = np.sum(rel_openInterest)*100
@@ -183,10 +197,27 @@ for i in np.arange(0, nOptionDays):
     aggVolume[i]      = np.sum(rel_volume)
     deltaAdjVolume[i] = np.sum(np.abs(rel_delta)*100 * rel_volume)
     
+    #Implied Volatility
+    IVOL[i] = np.mean(rel_impliedVol) #Naive average implied vol
+    
+    #Variance Swap Approach
+    #Calls
+    #otmCallImpliedVol  = rel_impliedVol[(rel_callFlag == 1) * (rel_OTMFlag == 1)]
+    #otmCallStrikes     = rel_strikes[(rel_callFlag == 1) * (rel_OTMFlag == 1)]
+    #call_leg = (1 / otmCallStrikes**2) * otmCallImpliedVol 
+    
+    #Puts
+    #otmPutImpliedVol = rel_impliedVol[(rel_callFlag == 0)*(rel_OTMFlag == 1)]
+    #otmPutStrikes    = rel_strikes[(rel_callFlag == 0) * (rel_OTMFlag == 1)]
+    #put_leg = (1 / otmPutStrikes**2) * otmPutImpliedVol
+
+    #weightedIVOL[i] = np.sum(call_leg) + np.sum(put_leg)
+    
+    
     
 #Construct array with aggregate data
-aggregateData = np.concatenate((UniqueDates.reshape(nOptionDays, 1), netGamma, netGamma_alt, aggOpenInterest,\
-                netOpenInterest, deltaAdjOpenInterest, deltaAdjNetOpenInterest, aggVolume, deltaAdjVolume), axis = 1)    
+aggregateData = np.concatenate((UniqueDates.reshape(nOptionDays, 1), netGamma, netGamma_alt, callGamma, putGamma, aggOpenInterest,\
+                netOpenInterest, deltaAdjOpenInterest, deltaAdjNetOpenInterest, aggVolume, deltaAdjVolume, IVOL), axis = 1)    
 
     
 #Save unsynced (to underlying) data for strategy use
@@ -210,13 +241,13 @@ if UnderlyingTicker == "VIX":
     UnderlyingData = np.concatenate((UnderlyingData, frontPrices.reshape(-1, 1), backPrices.reshape(-1, 1), frontVolume.reshape(-1, 1), backVolume.reshape(-1, 1)), axis = 1)
     
     cols = np.array(["Dates", UnderlyingTicker, UnderlyingTicker + " Volume", UnderlyingTicker + " Dollar Volume",\
-                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "frontPrices", "backPrices", "frontVolume", "backVolume", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest",\
-                     "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolume", "deltaAdjVolume"])
+                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "frontPrices", "backPrices", "frontVolume", "backVolume", "netGamma", "netGamma_alt", "gamma_call", "gamma_put", "aggOpenInterest", "netOpenInterest",\
+                     "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolume", "deltaAdjVolume", "IVOL"])
          
 else:
     cols = np.array(["Dates", UnderlyingTicker, UnderlyingTicker + " Volume", UnderlyingTicker + " Dollar Volume",\
-                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "ILLIQ", "netGamma", "netGamma_alt", "aggOpenInterest", "netOpenInterest",\
-                     "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolume", "deltaAdjVolume"])  
+                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "ILLIQ", "netGamma", "netGamma_alt", "gamma_call", "gamma_put", "aggOpenInterest", "netOpenInterest",\
+                     "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolume", "deltaAdjVolume", "IVOL"])  
     
 
 #Sync Data of underlying and aggregate
@@ -225,6 +256,7 @@ aggregateDataSynced = bt.SyncData(UnderlyingData, aggregateData, removeNonOverla
 #Transform to data frame
 aggregateDf  =  pd.DataFrame.from_records(aggregateDataSynced, columns = cols)
 aggregateDf  = aggregateDf.iloc[lookback:, :] #Kill lookback period
+
 
 sys.exit()
 ## EXPORT DATA TO EXCEL ##

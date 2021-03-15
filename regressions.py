@@ -131,12 +131,13 @@ for j in np.arange(0, len(UnderlyingTicker)):
     
     #Concatenate Independent variables to X matrix
     X = np.concatenate((netGamma_scaled.reshape(-1,1), IVOL.reshape(-1,1), AbsXsReturns.reshape(-1,1)), axis = 1)
+    
+    #Feature correlation
     IndependentVarDf = pd.DataFrame.from_records(X, columns = ["net Gamma", "IVOL", "Abs. Xs Returns"])
-    corrMatrix     = IndependentVarDf.corr()
+    corrMatrix       = IndependentVarDf.corr()
     sn.heatmap(corrMatrix, annot = True)
 
-    #IndependentVariableCorr = 
-    
+        
     regResults = []
     
     for i in np.arange(0, nRegs):
@@ -186,15 +187,18 @@ for j in np.arange(0, len(UnderlyingTicker)):
             lag_df["AbsXsRet (Lag = " + str(lag) + ")"] = b3 
         
         regResults.append(lag_df)
+        print(lag_df.to_latex(index=False)) #print to latex
+
+        
         
         if scatter == True:
-            x        = np.linspace(np.min(X[:, 1]), np.max(X[:, 1]), np.size(X[:, 1]))
-            reg_line = coefs[0] + coefs[1] * x #+ coefs[2]*x**2
+            #x        = np.linspace(np.min(X[:, 1]), np.max(X[:, 1]), np.size(X[:, 1]))
+            #reg_line = coefs[0] + coefs[1] * x #+ coefs[2]*x**2
             
             fig, ax = plt.subplots()
             
             ax.scatter(X[:, 1], y, color = '#0504aa', s = 0.5)
-            ax.plot(x, reg_line, color = "red", alpha = 0.5)
+            #ax.plot(x, reg_line, color = "red", alpha = 0.5)
             fig.suptitle("Absolute Returns vs Net Gamma Exposure (normalized)")
             ax.set_xlabel("Net Gamma Exposure (Normalized)")
             ax.set_ylabel("Daily Absolute Returns")
@@ -225,6 +229,9 @@ for j in np.arange(0, len(UnderlyingTicker)):
     
     RegResultList.append(AssetDf)
     
+   
+    
+   
     
 # X   = netGamma[0:-lag]
 # X   = sm.add_constant(X)
