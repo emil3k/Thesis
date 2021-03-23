@@ -10,24 +10,31 @@ import numpy as np
 import pandas as pd
 import Backtest as bt
 import time
+import matplotlib.pyplot as plt
 import sys
 
 ### SET WHICH ASSET TO BE IMPORTED #######################################################
-UnderlyingTicker      = "VIX Index"
-UnderlyingTickerShort = "VIX"
+UnderlyingTicker      = "QQQ US Equity"
+UnderlyingTickerShort = "QQQ"
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/"
+equity_index          = False #Toggle equity index for total return download
 ##########################################################################################
 
 #Load data
 OptionData    = pd.read_csv(loadloc + "OptionData/" + UnderlyingTickerShort + "OptionData.csv")
 SpotData      = pd.read_excel(loadloc + "SpotData/SpotData.xlsx", sheet_name = "Price")
 VolumeData    = pd.read_excel(loadloc + "SpotData/SpotData.xlsx", sheet_name = "Volume")
-MarketCapData = pd.read_excel(loadloc + "SpotData&SpotData.xlsx", sheet_name = "MarketCap")
+MarketCapData = pd.read_excel(loadloc + "SpotData/SpotData.xlsx", sheet_name = "MarketCap")
+
 
 #Grab data from right underlying
+if equity_index == True:
+    TRData = SpotData[["Dates", UnderlyingTicker + " TR"]]
+    
 SpotData      = SpotData[["Dates", UnderlyingTicker]]
 VolumeData    = VolumeData[["Dates", UnderlyingTicker]]
 MarketCapData = MarketCapData[["Dates", UnderlyingTicker]]
+
 
 print(OptionData.head())
 print(OptionData.tail())
@@ -43,6 +50,9 @@ UnderlyingDates  = bt.yyyymmdd(datesTime) #get desired date format
 UnderlyingPrices    = SpotData[UnderlyingTicker].to_numpy()
 UnderlyingVolume    = VolumeData[UnderlyingTicker].to_numpy() 
 UnderlyingMarketCap = MarketCapData[UnderlyingTicker].to_numpy()
+if equity_index == True:
+    UnderlyingPricesTR  = TRData[UnderlyingTicker + " TR"].to_numpy()
+
 
 
 tic = time.time()
@@ -116,6 +126,8 @@ UnderlyingDatesAll     = UnderlyingDates[StartInd:EndInd + 1]
 UnderlyingPricesAll    = UnderlyingPrices[StartInd:EndInd + 1]
 UnderlyingVolumeAll    = UnderlyingVolume[StartInd:EndInd + 1]
 UnderlyingMarketCapAll = UnderlyingMarketCap[StartInd:EndInd + 1]
+if equity_index == True:
+    UnderlyingPricesTRAll  = UnderlyingPricesTR[StartInd:EndInd + 1]
 
 #Check if all Option Dates are in Underlying Sample
 if np.sum(np.in1d(UniqueDates, UnderlyingDates)) != np.size(UniqueDates):
@@ -123,8 +135,8 @@ if np.sum(np.in1d(UniqueDates, UnderlyingDates)) != np.size(UniqueDates):
 
 #Trim Data from underlying to match that of the option data
 keepIndex = (np.in1d(UnderlyingDatesAll, UniqueDates) == 1) #Dates where option data is recorded
-UnderlyingDates  = UnderlyingDatesAll[keepIndex] #Keep underlying dates and prices where matching options
-UnderlyingPrices = UnderlyingPricesAll[keepIndex]
+UnderlyingDates    = UnderlyingDatesAll[keepIndex] #Keep underlying dates and prices where matching options
+UnderlyingPrices   = UnderlyingPricesAll[keepIndex]
 
 
 #Check Dates
@@ -223,12 +235,17 @@ cols  = np.array(["date", "exdate", "cp_flag", "strike_price", "best_bid", "best
                        "open_interest", "impl_volatility", "delta", "gamma",  "vega", "theta", "contract_size", \
                            "forward_price", "mid_price", "european_flag", "OTM_forward_flag", "OTM_flag", "spot_price", "ATMF_flag", "ATM_flag"])
 
-
-UnderlyingData     = np.concatenate((UnderlyingDatesAll.reshape(-1, 1), UnderlyingPricesAll.reshape(-1, 1),\
+if equity_index == True:
+    UnderlyingData     = np.concatenate((UnderlyingDatesAll.reshape(-1, 1), UnderlyingPricesAll.reshape(-1, 1),\
+                                     UnderlyingVolumeAll.reshape(-1, 1), UnderlyingMarketCapAll.reshape(-1, 1), UnderlyingPricesTRAll.reshape(-1,1)), axis = 1)
+    UnderlyingData     = pd.DataFrame.from_records(UnderlyingData, columns = ["Dates", "Price", "Volume", "Market Cap", "TR Index"])
+else:
+    UnderlyingData     = np.concatenate((UnderlyingDatesAll.reshape(-1, 1), UnderlyingPricesAll.reshape(-1, 1),\
                                      UnderlyingVolumeAll.reshape(-1, 1), UnderlyingMarketCapAll.reshape(-1, 1)), axis = 1)
+    UnderlyingData     = pd.DataFrame.from_records(UnderlyingData, columns = ["Dates", "Price", "Volume", "Market Cap"])
 
 OptionDataClean    = pd.DataFrame.from_records(OptionDataTr, columns = cols)
-UnderlyingData     = pd.DataFrame.from_records(UnderlyingData, columns = ["Dates", "Price", "Volume", "Market Cap"])
+
     
 
 #Save as csv file
