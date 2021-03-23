@@ -16,6 +16,7 @@ import sys
 UnderlyingAssetName   = "SPX Index"
 UnderlyingTicker      = "SPX"
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/CleanData/"
+equity_index          = True
 ##########################################################################################
 
 #Load data
@@ -87,6 +88,9 @@ UnderlyingPrices    = UnderlyingDataTr["Price"].to_numpy()
 UnderlyingVolume    = UnderlyingDataTr["Volume"].to_numpy()
 UnderlyingMarketCap = UnderlyingDataTr["Market Cap"].to_numpy()
 
+if equity_index == True:
+    UnderlyingTR    = UnderlyingDataTr["TR Index"].to_numpy()
+
 if UnderlyingTicker != "VIX": #Backfill market cap unless underlying is VIX
     #Backfill Market Cap
     UnderlyingReturns = bt.computeReturns(UnderlyingPrices) #Compute underlying returns
@@ -100,16 +104,17 @@ if UnderlyingTicker != "VIX": #Backfill market cap unless underlying is VIX
 
 
 
-
-
-
 #MA dollar volume
 lookback = 90
 nDays          = np.size(UnderlyingVolume)
 MADollarVolume = np.zeros((nDays,))
 MAVolume       = np.zeros((nDays,))
 ILLIQ          = np.zeros((nDays,))
-UnderlyingReturns = bt.computeReturns(UnderlyingPrices)
+
+if equity_index == True:
+    UnderlyingReturns = bt.computeReturns(UnderlyingTR)
+else:
+    UnderlyingReturns = bt.computeReturns(UnderlyingPrices)
 
 for i in np.arange(lookback, nDays):
     #grab volume
@@ -231,11 +236,24 @@ aggregateData = np.concatenate((UniqueDates.reshape(nOptionDays, 1), netGamma, n
 
 #Fill missing values of aggregate data w/ previous day value
 UnderlyingDollarVolume  = UnderlyingPrices * UnderlyingVolume   
-UnderlyingData          = np.concatenate((UnderlyingDates.reshape(-1, 1), UnderlyingPrices.reshape(-1, 1),\
-                                UnderlyingVolume.reshape(-1, 1), UnderlyingDollarVolume.reshape(-1, 1),\
-                                (Rf*100).reshape(-1, 1), MAVolume.reshape(-1,1), MADollarVolume.reshape(-1,1), UnderlyingMarketCap.reshape(-1, 1), ILLIQ.reshape(-1,1)), axis = 1) #add price and volume 
 
-    
+if equity_index == True:
+    UnderlyingData          = np.concatenate((UnderlyingDates.reshape(-1, 1), UnderlyingPrices.reshape(-1, 1),\
+                                UnderlyingVolume.reshape(-1, 1), UnderlyingDollarVolume.reshape(-1, 1),\
+                                (Rf*100).reshape(-1, 1), MAVolume.reshape(-1,1), MADollarVolume.reshape(-1,1), UnderlyingMarketCap.reshape(-1, 1), ILLIQ.reshape(-1,1), UnderlyingTR.reshape(-1,1)), axis = 1) #add price and volume 
+    cols = np.array(["Dates", UnderlyingTicker, UnderlyingTicker + " Volume", UnderlyingTicker + " Dollar Volume",\
+                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "ILLIQ", "TR Index", "netGamma", "netGamma_alt", "gamma_call", "gamma_put", "aggOpenInterest", "netOpenInterest",\
+                     "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolume", "deltaAdjVolume", "IVOL"])
+
+else:
+        UnderlyingData          = np.concatenate((UnderlyingDates.reshape(-1, 1), UnderlyingPrices.reshape(-1, 1),\
+                                UnderlyingVolume.reshape(-1, 1), UnderlyingDollarVolume.reshape(-1, 1),\
+                                (Rf*100).reshape(-1, 1), MAVolume.reshape(-1,1), MADollarVolume.reshape(-1,1), UnderlyingMarketCap.reshape(-1, 1), ILLIQ.reshape(-1,1)), axis = 1)    
+            
+        cols = np.array(["Dates", UnderlyingTicker, UnderlyingTicker + " Volume", UnderlyingTicker + " Dollar Volume",\
+                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "ILLIQ", "netGamma", "netGamma_alt", "gamma_call", "gamma_put", "aggOpenInterest", "netOpenInterest",\
+                     "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolume", "deltaAdjVolume", "IVOL"])
+            
 #Set columns for data frame
 if UnderlyingTicker == "VIX":
     UnderlyingData = np.concatenate((UnderlyingData, frontPrices.reshape(-1, 1), backPrices.reshape(-1, 1), frontVolume.reshape(-1, 1), backVolume.reshape(-1, 1)), axis = 1)
@@ -244,10 +262,7 @@ if UnderlyingTicker == "VIX":
                  "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "frontPrices", "backPrices", "frontVolume", "backVolume", "netGamma", "netGamma_alt", "gamma_call", "gamma_put", "aggOpenInterest", "netOpenInterest",\
                      "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolume", "deltaAdjVolume", "IVOL"])
          
-else:
-    cols = np.array(["Dates", UnderlyingTicker, UnderlyingTicker + " Volume", UnderlyingTicker + " Dollar Volume",\
-                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "ILLIQ", "netGamma", "netGamma_alt", "gamma_call", "gamma_put", "aggOpenInterest", "netOpenInterest",\
-                     "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolume", "deltaAdjVolume", "IVOL"])  
+
     
 
 #Sync Data of underlying and aggregate
@@ -258,7 +273,6 @@ aggregateDf  =  pd.DataFrame.from_records(aggregateDataSynced, columns = cols)
 aggregateDf  = aggregateDf.iloc[lookback:, :] #Kill lookback period
 
 
-sys.exit()
 ## EXPORT DATA TO EXCEL ##
 saveloc = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
 aggregateDf.to_csv(path_or_buf = saveloc + UnderlyingTicker + "AggregateData.csv" , index = False)
