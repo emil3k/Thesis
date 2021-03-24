@@ -66,11 +66,11 @@ print(ETFData.tail())
 
 #Dates
 indexDates      = indexData["Dates"].to_numpy()
-indexDates4fig  = pd.to_datetime(indexDates, format = '%Y%m%d')
-daycount        = bt.dayCount(indexDates4fig)
+dates4figIndex  = pd.to_datetime(indexDates, format = '%Y%m%d')
+daycount        = bt.dayCount(dates4figIndex)
 
 ETFDates        = ETFData["Dates"].to_numpy()
-ETFDates4fig    = pd.to_datetime(ETFDates, format = '%Y%m%d')
+dates4figETF    = pd.to_datetime(ETFDates, format = '%Y%m%d')
 
 #Prices
 indexPrice       = indexData[UnderlyingTicker].to_numpy()
@@ -82,12 +82,18 @@ Rf               = indexData["LIBOR"].to_numpy() / 100
 RfDaily          = np.zeros((np.size(Rf, 0), ))
 RfDaily[1:]      = Rf[0:-1] * daycount[1:]/360 
 
+
+########## Return and Gamma Computation #################
+
 #Compute Returns
 IndexReturns    = indexTRPrice[1:] / indexTRPrice[0:-1] - 1
 IndexReturns    = np.concatenate((np.zeros((1,)), IndexReturns), axis = 0) #add zero return for day 1
+IndexXsReturns  = IndexReturns - RfDaily
 
-ETFReturns = ETFPrice[1:] / ETFPrice[0:-1] - 1
-ETFReturns = np.concatenate((np.zeros((1,)), ETFReturns), axis = 0) #add zero return for day 1
+ETFReturns   = ETFPrice[1:] / ETFPrice[0:-1] - 1
+ETFReturns   = np.concatenate((np.zeros((1,)), ETFReturns), axis = 0) #add zero return for day 1
+ETFXsReturns = ETFReturns - RfDaily[-len(ETFReturns):]
+
 
 #Extract net gamma
 netGammaIndex = indexData["netGamma"].to_numpy()
@@ -99,80 +105,170 @@ marketCapETF     = ETFData["Market Cap"].to_numpy()
 
 #Compute Scaled Gamma 
 netGammaIndex_scaled = netGammaIndex / marketCapIndex
-netGammaETF_scaled   = netGammaIndex / marketCapETF
+netGammaETF_scaled   = netGammaETF / marketCapETF
+
+#Compute normalized gamma
+netGammaIndex_scaledNorm = (netGammaIndex_scaled - np.mean(netGammaIndex_scaled)) / np.std(netGammaIndex_scaled)
+netGammaETF_scaledNorm = (netGammaETF_scaled - np.mean(netGammaETF_scaled)) / np.std(netGammaETF_scaled)
+
+##############################################################
+########### #Investigate proporties of gamma ################
+[legend, gammaStatsIndex]  = gf.computeGammaStats(netGammaIndex_scaled, UnderlyingTicker, hist = True, periodLabel = periodLabelIndex)
+[legend, gammaStatsETF]    = gf.computeGammaStats(netGammaETF_scaled, UnderlyingETFTicker, hist = True, color = "red", periodLabel = periodLabelETF)
 
 
-sys.exit()
-#Investigate proporties of gamma
-[legend, gammaStats]    = gf.computeGammaStats(netGamma, UnderlyingTicker, printTable = True, hist = True, periodLabel = periodLabel)
-[legend, gammaStatsSPX] = gf.computeGammaStats(netGammaSPX, "SPX", hist = True, color = "red", periodLabel = periodLabel)
-
-   
 #Store in dataframe
 gammaStatsDf = pd.DataFrame()
-gammaStatsDf["Statistics"]       = legend
-gammaStatsDf[UnderlyingTicker]   = gammaStats
-gammaStatsDf["SPX"]              = gammaStatsSPX
+gammaStatsDf["Statistics"]        = legend
+gammaStatsDf[UnderlyingTicker]    = gammaStatsIndex
+gammaStatsDf[UnderlyingETFTicker] = gammaStatsETF
+print(gammaStatsDf)
+print(gammaStatsDf.to_latex(index=False))
 
-negGammaStreaks    = gf.computeNegGammaStreaks(netGamma, UnderlyingTicker, periodLabel = periodLabel)
-negGammaStreaksSPX = gf.computeNegGammaStreaks(netGammaSPX, "SPX", color = "red", periodLabel = periodLabel)
 
+negGammaStreaksIndex  = gf.computeNegGammaStreaks(netGammaIndex_scaled, UnderlyingTicker, periodLabel = periodLabelIndex)
+negGammaStreaksETF    = gf.computeNegGammaStreaks(netGammaETF_scaled, UnderlyingETFTicker, color = "red", periodLabel = periodLabelETF)
 
-#Normalize Series
-lag = 1
-netGamma_norm    = (netGamma - np.mean(netGamma)) / np.std(netGamma)
-netGammaSPX_norm = (netGammaSPXTr - np.mean(netGammaSPXTr)) / np.std(netGammaSPXTr)
-   
-netGamma_scaled    = netGamma / marketCap
-netGammaSPX_scaled = netGammaSPXTr / marketCap
-   
-#Collect gamma measures to smooth
-dataToSmooth     = np.concatenate((netGamma.reshape(-1, 1), netGammaSPXTr.reshape(-1, 1),\
-                   netGamma_norm.reshape(-1, 1), netGammaSPX_norm.reshape(-1, 1), netGamma_scaled.reshape(-1,1), \
-                   netGammaSPX_scaled.reshape(-1,1) ), axis = 1)
+#############################################################
+############### Autocorrelation #############################
+#Autocorrelation Plots
+nLags    = 20
+corrVecIndex = np.zeros((nLags, ))
+corrVecETF   = np.zeros((nLags, ))
 
- 
-   
-lookback = 100
-[smoothGamma, smoothDates] = gf.smoothData(dataToSmooth, indexDates, lookback)
+for i in np.arange(1, nLags):
+    corrVecIndex[i] = np.corrcoef(netGammaIndex_scaled[0:-i], netGammaIndex_scaled[i:])[0,1]
+    corrVecETF[i]   = np.corrcoef(netGammaETF_scaled[0:-i], netGammaETF_scaled[i:])[0,1]
 
-   
-#Gamma plots 
-#Market Cap Scaled
+#Autocorrelation plots
+x     = np.arange(1, nLags)
+width = 0.4
 plt.figure()
-plt.plot(dates4fig, netGamma_scaled, color = '#0504aa')
-plt.title("MM Net Gamma Exposure for " + UnderlyingTicker + " (" + periodLabel + ")")
-plt.ylabel("Net Gamma Exposure / Market Cap")
+plt.bar(x + width/2, corrVecIndex[1:], width = width, color = '#0504aa', label = UnderlyingTicker)  
+plt.bar(x - width/2, corrVecETF[1:], width = width, color = "red", alpha = 0.8, label = UnderlyingETFTicker)
+plt.title("Autocorrelation for different lags")
+plt.xlabel("Lags in days")
+plt.xticks(x, x, rotation='horizontal')
+plt.ylabel("Autocorrelation coefficient")
+plt.legend()
+plt.show()
+
+
+
+###############################################################
+########### Time Series analysis ##############################
+#Collect gamma measures to smooth
+dataToSmoothIndex  = np.concatenate((netGammaIndex.reshape(-1, 1), netGammaIndex_scaled.reshape(-1, 1), netGammaIndex_scaledNorm.reshape(-1, 1)), axis = 1)
+dataToSmoothETF    = np.concatenate((netGammaETF.reshape(-1, 1), netGammaETF_scaled.reshape(-1, 1), netGammaETF_scaledNorm.reshape(-1, 1)), axis = 1)
+
+lookback = 100
+[smoothGammaIndex, smoothDatesIndex] = gf.smoothData(dataToSmoothIndex, indexDates, lookback, dates4figIndex)
+[smoothGammaETF, smoothDatesETF]     = gf.smoothData(dataToSmoothETF, ETFDates, lookback, dates4figETF)
+
+#Construct vector of ETF smoothed gamma of equal size as Index  
+netGammaETFLong = np.zeros((len(smoothGammaIndex), 3))
+netGammaETFLong[0:, :] = np.nan    
+netGammaETFLong[-len(smoothGammaETF):, :] = smoothGammaETF   
+
+
+
+##### Gamma Time Series Plots ########
+#Scaled Gamma Index
+plt.figure()
+plt.plot(dates4figIndex, netGammaIndex_scaled, color = '#0504aa')
+plt.title("Net Gamma Exposure for " + UnderlyingTicker + " (" + periodLabelIndex + ")")
+plt.ylabel(r'$netGamma_t%.5f$')
 plt.legend()
 plt.show()
       
-## Scatter plot
+#Scaled Gamma ETF
 plt.figure()
-plt.scatter(netGamma[0:-lag], Returns[lag:], color = '#0504aa', s = 0.7)
-plt.title("Returns vs Net Gamma for " + UnderlyingTicker + ", lag = " + str(lag) + " day" + " (" + periodLabel + ")")
-plt.ylabel(UnderlyingTicker + " Returns")
-plt.xlabel("Market Maker Net Gamma Exposure")
+plt.plot(dates4figETF, netGammaETF_scaled, color = "red", alpha = 0.8)
+plt.title("Net Gamma Exposure for " + UnderlyingETFTicker + " (" + periodLabelIndex + ")")
+plt.ylabel(r'$netGamma_t%.5f$')
+plt.legend()
+plt.show()
+
+#Smoothed Gamma Index      
+plt.figure()
+plt.plot(smoothDatesIndex, smoothGammaIndex[:, 1], color = '#0504aa')
+plt.title("100 DMA Net Gamma Exposure for " + UnderlyingETFTicker + " (" + periodLabelIndex + ")")
+plt.ylabel(r'$netGamma_t%.5f$')
+plt.legend()
+plt.show()
+
+#Smoothed Gamma ETF  
+plt.figure()
+plt.plot(smoothDatesETF, smoothGammaETF[:, 1], color = "red", alpha = 0.8)
+plt.title("100 DMA Net Gamma Exposure for " + UnderlyingETFTicker + " (" + periodLabelIndex + ")")
+plt.ylabel(r'$netGamma_t%.5f$')
+plt.legend()
+plt.show()
+
+#Normalize to compare the two
+plt.figure()
+plt.plot(smoothDatesIndex, smoothGammaIndex[:, 2], color = '#0504aa', label = UnderlyingTicker)
+plt.plot(smoothDatesIndex, netGammaETFLong[:, 2], color = "red", alpha = 0.8, label = UnderlyingETFTicker)
+plt.title("Net Gamma Exposure (100 DMA, Standardized)")
+plt.ylabel(r'$netGamma_t%.5f$' + " (Standardized)")
+plt.legend()
+plt.show()
+
+
+###### Scatter plot ##############
+lag = 1
+plt.figure()
+plt.scatter(netGammaIndex_scaled[0:-lag], IndexXsReturns[lag:], color = '#0504aa', s = 5)
+plt.title("Returns vs Net Gamma for " + UnderlyingTicker + ", lag = " + str(lag) + " day" + " (" + periodLabelIndex + ")")
+plt.ylabel(UnderlyingTicker + " Excess Returns")
+plt.xlabel(r'$netGamma_t%.5f$')
 plt.legend()
     
+lag = 1
+plt.figure()
+plt.scatter(netGammaETF_scaled[0:-lag], ETFXsReturns[lag:], color = "red", alpha = 0.8, s = 5)
+plt.title("Returns vs Net Gamma for " + UnderlyingETFTicker + ", lag = " + str(lag) + " day" + " (" + periodLabelIndex + ")")
+plt.ylabel(UnderlyingTicker + " Excess Returns")
+plt.xlabel(r'$netGamma_t%.5f$')
+plt.legend()
 
-
+####################################
+######## Bucket Plots ##############
 
 ######### BUCKETS ##############
-[bMeans, bAbsMeans, bStd] = gf.plotBucketStats(netGamma, Returns, lag = 1, nBuckets = 6, UnderlyingTicker = UnderlyingTicker, periodLabel = periodLabel) #regular buckets
-
+[bMeans, bAbsMeans, bStd] = gf.plotBucketStats(netGammaIndex_scaled, IndexXsReturns, lag = 1, nBuckets = 6, UnderlyingTicker = UnderlyingTicker, color = prefColor, alpha = 0.8, periodLabel = periodLabelIndex) #regular buckets
+[bMeans, bAbsMeans, bStd] = gf.plotBucketStats(netGammaETF_scaled, ETFXsReturns, lag = 1, nBuckets = 6, UnderlyingTicker = UnderlyingETFTicker, color = "red", alpha = 0.8, periodLabel = periodLabelETF) #regular buckets
 
 #VIX Returns for SPX gamma
-VIXandSPX = gf.plotBucketStats(netGammaSPX, Returns, lag = 1, nBuckets = 6, periodLabel = "SPX Gamma")
-
+#VIXandSPX = gf.plotBucketStats(netGammaSPX, Returns, lag = 1, nBuckets = 6, periodLabel = "SPX Gamma")
 ###################################
 
 
-## Open Interest and Volume Investigation
-#Moving average smoothing for visualizations
-   
-deltaAdjNetOpenInterest = indexData["deltaAdjOpenInterest"].to_numpy()   
-deltaAdjNetOpenInterest_scaled = (deltaAdjNetOpenInterest * indexPrice) / marketCap
+############ Open Interest and Volume Investigation ################
 
+#Grab needed data
+openInterestIndex            = indexData["aggOpenInterest"].to_numpy()
+deltaAdjOpenInterestIndex    = indexData["deltaAdjOpenInterest"].to_numpy()  
+volumeIndexOptions           = indexData["aggVolume"].to_numpy()
+deltaAdjVolumeIndex          = indexData["deltaAdjVolume"].to_numpy()
+volumeIndex                  = indexData[UnderlyingTicker + " Volume"].to_numpy()
+
+openInterestETF          = ETFData["aggOpenInterest"].to_numpy()
+deltaAdjOpenInterestETF  = ETFData["deltaAdjOpenInterest"].to_numpy()  
+volumeETFOptions         = ETFData["aggVolume"].to_numpy()
+deltaAdjVolumeETF        = ETFData["deltaAdjVolume"].to_numpy()
+volumeETF                = ETFData[UnderlyingETFTicker + " Volume"].to_numpy()
+
+#Combine volume data for index and etf
+ETFMultiplier = 10
+TotalVolumeUnderlying = volumeIndex + volumeETF / ETFMultiplier
+TotalVolumeOptions    = deltaAdjVolumeIndex + deltaAdjVolumeETF / ETFMultiplier
+
+
+
+
+
+sys.exit()
 
 smoothCols = np.array(["aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
                         "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingTicker + " Volume",\
