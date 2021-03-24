@@ -12,8 +12,8 @@ import statsmodels.api as sm
 import sys
 
 ### SET WHICH ASSET TO BE IMPORTED #######################################################
-UnderlyingAssetName   = "SPX Index"
-UnderlyingTicker      = "SPX"
+UnderlyingAssetName   = "SPY Index"
+UnderlyingTicker      = "SPY"
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
 prefColor             = '#0504aa'
 ##########################################################################################
@@ -362,12 +362,7 @@ for i in np.arange(0, nSplits):
     
    
     
-    
-    
    
-    
-    
-    
     
     ############# REVERSALS #################
     

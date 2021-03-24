@@ -86,7 +86,7 @@ def smoothData(dataToSmooth, dates, lookback, dates4fig = 0):
     #Trim
     smoothData      = smoothData[lookback:, :]
     
-    if np.dim(dates4fig) > 0:
+    if np.ndim(dates4fig) > 0:
         smoothDates     = dates4fig[lookback:, ]
     else:
         smoothDates = dates[lookback:, ]     
@@ -96,7 +96,7 @@ def smoothData(dataToSmooth, dates, lookback, dates4fig = 0):
 
 #plot Buckets function
 #returns should be same format as netGamma (i.e 0 in first row)
-def plotBucketStats(netGamma, Returns, lag, nBuckets, UnderlyingTicker = " ", periodLabel = " ", ):
+def plotBucketStats(netGamma, Returns, lag, nBuckets, UnderlyingTicker = " ", periodLabel = " ", color = "blue", alpha = 0.8 ):
     nDays       = np.size(netGamma)
     quantileInd = np.floor(np.linspace(0, nDays - lag, nBuckets + 1)) #Index of buckets
     
@@ -126,7 +126,7 @@ def plotBucketStats(netGamma, Returns, lag, nBuckets, UnderlyingTicker = " ", pe
     x = np.arange(1, nBuckets + 1)
     width = 0.7
     plt.figure()
-    plt.bar(x, bucketAbsMeans, width = width, color = '#0504aa', label = UnderlyingTicker)  
+    plt.bar(x, bucketAbsMeans, width = width, color = color, alpha = alpha, label = UnderlyingTicker)  
     plt.title("Avg. Absolute Returns by Gamma Exposure, Lag = " + str(lag) + " day" + " (" + periodLabel + ")")
     plt.xlabel("Gamma Exposure (1 is the lowest quantile)")
     plt.ylabel("Average Absolute Returns")
@@ -135,7 +135,7 @@ def plotBucketStats(netGamma, Returns, lag, nBuckets, UnderlyingTicker = " ", pe
     
     x = np.arange(1, nBuckets + 1)
     plt.figure()
-    plt.bar(x, bucketMeans, width = width, color = '#0504aa', label = UnderlyingTicker)  
+    plt.bar(x, bucketMeans, width = width, color = color, alpha = alpha, label = UnderlyingTicker)  
     plt.title("Avg. Returns by Gamma Exposure, Lag = " + str(lag) + " day" + " (" + periodLabel + ")")
     plt.xlabel("Gamma Exposure (1 is the lowest quantile)")
     plt.ylabel("Average Returns")
@@ -144,7 +144,7 @@ def plotBucketStats(netGamma, Returns, lag, nBuckets, UnderlyingTicker = " ", pe
         
     x = np.arange(1, nBuckets + 1)
     plt.figure()
-    plt.bar(x, bucketStd, width = width, color = '#0504aa', label = UnderlyingTicker)  
+    plt.bar(x, bucketStd, width = width, color = color, alpha = alpha, label = UnderlyingTicker)  
     plt.title("Std. by Gamma Exposure, Lag = " + str(lag) + " day" + " (" + periodLabel + ")")
     plt.xlabel("Gamma Exposure (1 is the lowest quantile)")
     plt.ylabel("Standard Deviation")
