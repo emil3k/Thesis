@@ -19,11 +19,11 @@ import gammafunctions as gf
 import sys
 
 ### SET WHICH ASSET TO BE IMPORTED #######################################################
-UnderlyingAssetName   = "SPX Index"
-UnderlyingTicker      = "SPX"
+UnderlyingAssetName   = "RUT Index"
+UnderlyingTicker      = "RUT"
 
-UnderlyingETFName     = "SPY US Equity"
-UnderlyingETFTicker   = "SPY"
+UnderlyingETFName     = "IWM US Equity"
+UnderlyingETFTicker   = "IWM"
 
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
 prefColor             = '#0504aa'
@@ -103,6 +103,13 @@ netGammaETF   = ETFData["netGamma"].to_numpy()
 marketCapIndex   = indexData["Market Cap"].to_numpy()
 marketCapETF     = ETFData["Market Cap"].to_numpy()
 
+
+if UnderlyingETFTicker == "IWM": #replace min value of IWM Market Cap
+    isMinVal = (marketCapETF == np.min(marketCapETF))
+    minValIdx = int(np.nonzero(isMinVal)[0])  
+    marketCapETF[minValIdx - 1:minValIdx + 1] = np.mean(marketCapETF[minValIdx - 5:minValIdx -1]) #replace w/ previos value
+    
+
 #Compute Scaled Gamma 
 netGammaIndex_scaled = netGammaIndex / marketCapIndex
 netGammaETF_scaled   = netGammaETF / marketCapETF
@@ -170,13 +177,18 @@ netGammaETFLong = np.zeros((len(smoothGammaIndex), 3))
 netGammaETFLong[0:, :] = np.nan    
 netGammaETFLong[-len(smoothGammaETF):, :] = smoothGammaETF   
 
+#Compute Correlation
+GammaCorr = np.corrcoef(netGammaIndex_scaled[-len(netGammaETF_scaled):], netGammaETF_scaled)[0, 1]
+print("Gamma Correlation")
+print(GammaCorr)
+
 
 
 ##### Gamma Time Series Plots ########
 #Scaled Gamma Index
 plt.figure()
-plt.plot(dates4figIndex, netGammaIndex_scaled, color = '#0504aa')
-plt.title("Net Gamma Exposure for " + UnderlyingTicker + " (" + periodLabelIndex + ")")
+plt.plot(dates4figIndex, netGammaIndex_scaled, color = '#0504aa', alpha = 0.8)
+plt.title("Net Gamma Exposure for " + UnderlyingTicker)
 plt.ylabel(r'$netGamma_t%.5f$')
 plt.legend()
 plt.show()
@@ -184,15 +196,24 @@ plt.show()
 #Scaled Gamma ETF
 plt.figure()
 plt.plot(dates4figETF, netGammaETF_scaled, color = "red", alpha = 0.8)
-plt.title("Net Gamma Exposure for " + UnderlyingETFTicker + " (" + periodLabelIndex + ")")
+plt.title("Net Gamma Exposure for " + UnderlyingETFTicker)
 plt.ylabel(r'$netGamma_t%.5f$')
 plt.legend()
 plt.show()
 
+
+#Scaled Gamma Subplot
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize = (10, 3))
+fig.suptitle('Net Gamma Exposure Over Time')
+ax1.plot(dates4figIndex, netGammaIndex, color = '#0504aa', alpha = 0.8, label = UnderlyingTicker)
+ax2.plot(dates4figETF, netGammaETF, color = "red", alpha = 0.8, label = UnderlyingETFTicker)
+fig.legend()
+
+
 #Smoothed Gamma Index      
 plt.figure()
 plt.plot(smoothDatesIndex, smoothGammaIndex[:, 1], color = '#0504aa')
-plt.title("100 DMA Net Gamma Exposure for " + UnderlyingETFTicker + " (" + periodLabelIndex + ")")
+plt.title("100 DMA Net Gamma Exposure for " + UnderlyingETFTicker)
 plt.ylabel(r'$netGamma_t%.5f$')
 plt.legend()
 plt.show()
@@ -200,7 +221,7 @@ plt.show()
 #Smoothed Gamma ETF  
 plt.figure()
 plt.plot(smoothDatesETF, smoothGammaETF[:, 1], color = "red", alpha = 0.8)
-plt.title("100 DMA Net Gamma Exposure for " + UnderlyingETFTicker + " (" + periodLabelIndex + ")")
+plt.title("100 DMA Net Gamma Exposure for " + UnderlyingETFTicker)
 plt.ylabel(r'$netGamma_t%.5f$')
 plt.legend()
 plt.show()
@@ -227,10 +248,11 @@ plt.legend()
 lag = 1
 plt.figure()
 plt.scatter(netGammaETF_scaled[0:-lag], ETFXsReturns[lag:], color = "red", alpha = 0.8, s = 5)
-plt.title("Returns vs Net Gamma for " + UnderlyingETFTicker + ", lag = " + str(lag) + " day" + " (" + periodLabelIndex + ")")
+plt.title("Returns vs Net Gamma for " + UnderlyingETFTicker + ", lag = " + str(lag) + " day" + " (" + periodLabelETF + ")")
 plt.ylabel(UnderlyingTicker + " Excess Returns")
 plt.xlabel(r'$netGamma_t%.5f$')
 plt.legend()
+
 
 ####################################
 ######## Bucket Plots ##############
@@ -245,24 +267,65 @@ plt.legend()
 
 
 ############ Open Interest and Volume Investigation ################
-
 #Grab needed data
 openInterestIndex            = indexData["aggOpenInterest"].to_numpy()
 deltaAdjOpenInterestIndex    = indexData["deltaAdjOpenInterest"].to_numpy()  
 volumeIndexOptions           = indexData["aggVolume"].to_numpy()
 deltaAdjVolumeIndex          = indexData["deltaAdjVolume"].to_numpy()
 volumeIndex                  = indexData[UnderlyingTicker + " Volume"].to_numpy()
+dollarVolumeIndex            = indexData[UnderlyingTicker + " Dollar Volume"].to_numpy()
+
 
 openInterestETF          = ETFData["aggOpenInterest"].to_numpy()
 deltaAdjOpenInterestETF  = ETFData["deltaAdjOpenInterest"].to_numpy()  
 volumeETFOptions         = ETFData["aggVolume"].to_numpy()
 deltaAdjVolumeETF        = ETFData["deltaAdjVolume"].to_numpy()
 volumeETF                = ETFData[UnderlyingETFTicker + " Volume"].to_numpy()
+dollarVolumeETF          = ETFData[UnderlyingETFTicker + " Dollar Volume"].to_numpy()
+
 
 #Combine volume data for index and etf
-ETFMultiplier = 10
-TotalVolumeUnderlying = volumeIndex + volumeETF / ETFMultiplier
-TotalVolumeOptions    = deltaAdjVolumeIndex + deltaAdjVolumeETF / ETFMultiplier
+ETFMultiplier      = 10
+
+#Match size
+volumeETFLong      = np.zeros((len(volumeIndex),))
+volumeETFLong[0:]  = np.nan
+volumeETFLong[-len(volumeETF):] = volumeETF
+
+deltaAdjVolumeETFLong      = np.zeros((len(deltaAdjVolumeIndex), ))
+deltaAdjVolumeETFLong[0:]  = np.nan
+deltaAdjVolumeETFLong[-len(deltaAdjVolumeETF):] = deltaAdjVolumeETF
+
+#Smooth data for nicer plots
+volumeDataToSmooth = np.concatenate((volumeIndex.reshape(-1,1), volumeETFLong.reshape(-1,1), deltaAdjVolumeIndex.reshape(-1,1), deltaAdjVolumeETFLong.reshape(-1,1)), axis  = 1)
+[smoothVolumeData, smoothVolumeDates] = gf.smoothData(volumeDataToSmooth, dates4figIndex, lookback = 100)
+
+
+#Plot Volume Options
+plt.figure()
+plt.plot(dates4figIndex, deltaAdjVolumeIndex, color = prefColor, alpha = 0.8, label = UnderlyingTicker)
+plt.plot(dates4figIndex, deltaAdjVolumeETFLong / ETFMultiplier, color = "red", alpha = 0.8, label = UnderlyingETFTicker)
+plt.title("Delta Adjusted Volume")
+plt.ylabel("Volume, (" + UnderlyingTicker + " Equivalent Shares)")
+plt.legend()
+
+#Plot Volume Underlying
+plt.figure()
+plt.plot(dates4figIndex, volumeIndex, color = prefColor, alpha = 0.8, label = UnderlyingTicker)
+plt.plot(dates4figIndex, volumeETFLong / ETFMultiplier, color = "red", alpha = 0.8, label = UnderlyingETFTicker)
+plt.title("Underlying Volume")
+plt.ylabel("Volume, (" + UnderlyingTicker + " Equivalent Shares)")
+plt.legend()
+
+#Plot smooth data
+plt.figure()
+plt.plot(smoothVolumeDates, smoothVolumeData[:, 2], color = prefColor, alpha = 0.8, label = UnderlyingTicker)
+plt.plot(smoothVolumeDates, smoothVolumeData[:, 3] / ETFMultiplier, color = "red", alpha = 0.8, label = UnderlyingETFTicker)
+plt.title("Delta Adjusted Volume (100 DMA)")
+plt.ylabel("Volume, (" + UnderlyingTicker + " Equivalent Shares)")
+plt.legend()
+
+
 
 
 
@@ -416,7 +479,22 @@ plt.show()
 
 
 
+##########################################
+### Gamma Correlation Between Index and ETF
+GammaCorrelation = np.array([0.74, 0.35, 0.42])
+Pairs = np.array(["SPX/SPY", "NDX/QQQ", "RUT/IWM"])
+nPairs = len(Pairs)
 
+#Correlation plot
+x     = np.arange(0, nPairs)
+width = 0.5
+plt.figure(figsize = (10, 4))
+plt.bar(x, GammaCorrelation, width = width, color = '#0504aa', alpha = 0.8)  
+plt.title("Net Gamma Correlation between Index and ETF")
+plt.xticks(x, Pairs, rotation='horizontal')
+plt.ylabel("Correlation Coefficient")
+plt.legend()
+plt.show()
 
 
 
