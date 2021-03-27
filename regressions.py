@@ -105,12 +105,13 @@ def plotResiduals(residuals, lag = None, ticker = None, color = '#0504aa', histt
 #lagList = [1, 2, 5, 10]
 lagList = [1]
 nRegs   = len(lagList)
-hist    = True
-scatter = True
+hist    = False
+scatter = False
 RegResultList = []
 
 for j in np.arange(0, len(UnderlyingTicker)):
     ticker   = UnderlyingTicker[j]
+    name     = UnderlyingAssetName[j]
     data     = AggregateData[j]
     xsret    = XsReturns[j]
     
@@ -120,51 +121,63 @@ for j in np.arange(0, len(UnderlyingTicker)):
     marketCap      = data["Market Cap"].to_numpy()
     MAdollarVolume = data["MADollarVolume"].to_numpy() 
     
+    
     #Net Gamma Measures
     netGamma_norm   = (netGamma - np.mean(netGamma)) / np.std(netGamma)
     netGamma_scaled = netGamma / marketCap
     netGamma_barbon = netGamma / MAdollarVolume
-    
-    #Control Variables
-    IVOL         = data["IVOL"].to_numpy()
-    AbsXsReturns = np.abs(xsret)
-    
+    IVOL            = data["IVOL"].to_numpy()
+   
     #Concatenate Independent variables to X matrix
-    X = np.concatenate((netGamma_scaled.reshape(-1,1), IVOL.reshape(-1,1), AbsXsReturns.reshape(-1,1)), axis = 1)
+    X = np.concatenate((netGamma_scaled.reshape(-1,1), IVOL.reshape(-1,1)), axis = 1)
+    
+    ###Control Regression###
+    #Lagged values
+    IVOL1          = IVOL[2:].reshape(-1,1)
+    IVOL2          = IVOL[1:-1].reshape(-1,1)
+    IVOL3          = IVOL[0:-2].reshape(-1,1)
+   
+    AbsXsReturns  = np.abs(xsret)
+    AbsXsRet1  = AbsXsReturns[2:].reshape(-1,1)
+    AbsXsRet2  = np.abs(xsret[1:-1]).reshape(-1,1)
+    AbsXsRet3  = np.abs(xsret[0:-2]).reshape(-1,1)
+   
+    #Contatenate laged values to control matrix
+    X_control = np.concatenate((IVOL2, IVOL3, AbsXsRet1, AbsXsRet2, AbsXsRet3), axis = 1)
+    X_control = np.concatenate((X[2:], X_control), axis = 1)
+    
     
     #Feature correlation
-    IndependentVarDf = pd.DataFrame.from_records(X, columns = ["net Gamma", "IVOL", "Abs. Xs Returns"])
+    IndependentVarDf = pd.DataFrame.from_records(X_control, columns = [r'$netGamma_t%.5f$', r'$IVOL_t%.5f$', r'$IVOL_{t-1}%.5f$', r'$IVOL_{t-2}%.5f$', r'$|R_t|%.5f$', r'$|R_{t-1}|%.5f$', r'$|R_{t-2}|%.5f$' ])
     corrMatrix       = IndependentVarDf.corr()
     sn.heatmap(corrMatrix, annot = True)
 
-        
+    
+   
     regResults = []
     
     for i in np.arange(0, nRegs):
         lag    = lagList[i]
         y      = np.abs(xsret[lag:])
         nObs   = np.size(y)
-        
-        #X_raw  = adjNetGamma_norm[0:-lag]
-        #X_sqrd = adjNetGamma_norm[0:-lag]**2
-        #X      = np.concatenate((X_raw.reshape(nObs, 1), X_sqrd.reshape(nObs, 1)), axis = 1)
+   
        
         X      = X[0:-lag, :]       #Lag matrix accordingly 
         X      = sm.add_constant(X) #add constant
     
         reg       = sm.OLS(y, X).fit()
-        coefs     = np.round(reg.params, decimals = 5)
-        tvals     = np.round(reg.tvalues, decimals = 5)
-        pvals     = np.round(reg.pvalues, decimals = 5)
-        r_squared = np.round(reg.rsquared, decimals = 5)
-        
-        legend  = np.array(["statistic", "coefficient", "t stats", "p-values", "r_squared"])
-        alpha   = np.array(["alpha", coefs[0], tvals[0], pvals[0], r_squared])
-        b1      = np.array(["netGamma", coefs[1], tvals[1], pvals[1], " "])
-        b2      = np.array(["IVOL", coefs[2], tvals[2], pvals[2], " "])
-        b3      = np.array(["AbsXsRet", coefs[3], tvals[3], pvals[3], " "])
-        
+        coefs     = np.round(reg.params, decimals = 3)
+        tvals     = np.round(reg.tvalues, decimals = 3)
+        pvals     = np.round(reg.pvalues, decimals = 3)
+        r_squared = np.round(reg.rsquared, decimals = 3)
+            
+        legend  = np.array(['\textbf{' +name + '}', "coefficient", "t stats", "p-values"])
+        alpha   = np.array([" ", coefs[0], tvals[0], pvals[0]])
+        b1      = np.array([" ", coefs[1], tvals[1], pvals[1]])
+        b2      = np.array([" ", coefs[2], tvals[2], pvals[2]])
+        r       = np.array([" ", r_squared, " ", " ", ])
         lag_df = pd.DataFrame()
+        
         
         #LASSO FOR Parameter selection
         LassoFeature = LassoCV(n_alphas = 100, fit_intercept = False, normalize = False, cv = 10, \
@@ -175,21 +188,39 @@ for j in np.arange(0, len(UnderlyingTicker)):
         
         
         if i == 0: #First Data Frame
-            lag_df["Statistic(Lag = " + str(lag) + ")"] = legend
-            lag_df["alpha (Lag = " + str(lag) + ")"]    = alpha
-            lag_df["netGamma (Lag = " + str(lag) + ")"] = b1
-            lag_df["IVOL (Lag = " + str(lag) + ")"]     = b2
-            lag_df["AbsXsRet (Lag = " + str(lag) + ")"] = b3 
+            lag_df["Lag = " + str(lag) + " day(s)"]  = legend
+            lag_df[r'$\alpha$']                 = alpha
+            lag_df['$netGamma_t$']             = b1
+            lag_df['$IVOL_t$']                 = b2
+            lag_df['$R^2$']                    = r
         else:
             lag_df["alpha (Lag = " + str(lag) + ")"]    = alpha
             lag_df["netGamma (Lag = " + str(lag) + ")"] = b1 
             lag_df["IVOL (Lag = " + str(lag) + ")"]     = b2 
-            lag_df["AbsXsRet (Lag = " + str(lag) + ")"] = b3 
         
         regResults.append(lag_df)
-        print(lag_df.to_latex(index=False)) #print to latex
+        print(lag_df.to_latex(index=False, escape = False)) #print to latex
 
         
+        legend = np.array(['$netGamma_t$', " ", '$IVOL_t$', " ", 'Intercept', " ", '$R^2$' ])
+        
+        sign_test = []
+        for coef in coefs:
+            if coef < 0.01:
+                sign_test.append("***")
+            elif coef < 0.05:
+                sign_test.append("**")
+            elif coef < 0.1:
+                sign_test.append("*")
+            else:
+                sign_test.append("")
+        
+            
+        results = np.array([coefs[1], ])
+
+
+
+        sys.exit()     
         
         if scatter == True:
             #x        = np.linspace(np.min(X[:, 1]), np.max(X[:, 1]), np.size(X[:, 1]))
