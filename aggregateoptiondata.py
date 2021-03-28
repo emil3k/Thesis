@@ -13,10 +13,10 @@ import sys
 ## Aggregate Option Data to daily series
 
 ### SET WHICH ASSET TO BE IMPORTED #######################################################
-UnderlyingAssetName   = "SPX Index"
-UnderlyingTicker      = "SPX"
+UnderlyingAssetName   = "VIX Index"
+UnderlyingTicker      = "VIX"
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/CleanData/"
-equity_index          = True
+equity_index          = False
 ##########################################################################################
 
 #Load data
@@ -86,7 +86,11 @@ OptionDataTr  = OptionData.loc[non_violating, :]
 UnderlyingDates     = UnderlyingDataTr["Dates"].to_numpy()
 UnderlyingPrices    = UnderlyingDataTr["Price"].to_numpy()
 UnderlyingVolume    = UnderlyingDataTr["Volume"].to_numpy()
-UnderlyingMarketCap = UnderlyingDataTr["Market Cap"].to_numpy()
+
+if UnderlyingTicker == "VIX":
+    UnderlyingMarketCap = frontVolume + backVolume
+else:    
+    UnderlyingMarketCap = UnderlyingDataTr["Market Cap"].to_numpy()
 
 if equity_index == True:
     UnderlyingTR    = UnderlyingDataTr["TR Index"].to_numpy()
@@ -259,7 +263,7 @@ if UnderlyingTicker == "VIX":
     UnderlyingData = np.concatenate((UnderlyingData, frontPrices.reshape(-1, 1), backPrices.reshape(-1, 1), frontVolume.reshape(-1, 1), backVolume.reshape(-1, 1)), axis = 1)
     
     cols = np.array(["Dates", UnderlyingTicker, UnderlyingTicker + " Volume", UnderlyingTicker + " Dollar Volume",\
-                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "frontPrices", "backPrices", "frontVolume", "backVolume", "netGamma", "netGamma_alt", "gamma_call", "gamma_put", "aggOpenInterest", "netOpenInterest",\
+                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "ILLIQ", "frontPrices", "backPrices", "frontVolume", "backVolume", "netGamma", "netGamma_alt", "gamma_call", "gamma_put", "aggOpenInterest", "netOpenInterest",\
                      "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolume", "deltaAdjVolume", "IVOL"])
          
 
