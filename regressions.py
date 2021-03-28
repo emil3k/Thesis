@@ -16,8 +16,13 @@ from sklearn.linear_model import LassoCV
 #Regressions
 
 ### SET IMPORT PARAMS ####################################################################
-UnderlyingAssetName   = ["SPX Index"]
-UnderlyingTicker      = ["SPX"]
+UnderlyingAssetName   = ["SPX Index", "SPY US Equity", "NDX Index", "QQQ US Equity", "RUT Index", "IWM US Equity", "VIX Index"]
+UnderlyingTicker      = ["SPX", "SPY", "NDX", "QQQ", "RUT", "IWM", "VIX"]
+IsEquityIndex        = [True, False, True, False, True, False, False]
+#UnderlyingAssetName   = ["SPY US Equity"]
+#UnderlyingTicker      = ["SPY"]
+#IsEquityIndex         = [False]
+
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
 prefColor             = '#0504aa'
 ##########################################################################################
@@ -36,6 +41,7 @@ XsReturns    = []
 for i in np.arange(0, nAssets):
     data   = AggregateData[i]
     ticker = UnderlyingTicker[i]
+    eqIndexFlag  = IsEquityIndex[i]
     rf     = data["LIBOR"].to_numpy()
     
     def computeRfDaily(data):
@@ -49,18 +55,23 @@ for i in np.arange(0, nAssets):
         return RfDaily
     
     if ticker  != "VIX":
-       price    = data[ticker].to_numpy()
-       rf       = computeRfDaily(data)
-       
-       #Compute returns 
-       ret   = price[1:] / price[0:-1] - 1 
-       ret   = np.concatenate((np.zeros((1, )), ret), axis = 0)
-       xsret = ret - rf
-       
-       #Store
-       TotalReturns.append(ret)
-       XsReturns.append(xsret)
-    
+        #Use Total Return Index for index, and normal price for ETF
+        if eqIndexFlag == True:
+            price = data["TR Index"].to_numpy()   
+        else:
+            price    = data[ticker].to_numpy()
+           
+        rf       = computeRfDaily(data)    
+        #Compute returns 
+        ret   = price[1:] / price[0:-1] - 1 
+        ret   = np.concatenate((np.zeros((1, )), ret), axis = 0)
+        xsret = ret - rf
+        
+        #Store
+        TotalReturns.append(ret)
+        XsReturns.append(xsret)
+
+    #Use futures for VIX Returns
     else:
        frontPrices    = data["frontPrices"].to_numpy()
        rf = computeRfDaily(data)
@@ -124,10 +135,19 @@ for j in np.arange(0, len(UnderlyingTicker)):
     
     #Net Gamma Measures
     netGamma_norm   = (netGamma - np.mean(netGamma)) / np.std(netGamma)
-    netGamma_scaled = netGamma / marketCap
-    netGamma_barbon = netGamma / MAdollarVolume
+    
+    #Use barbon measure for VIX
+    if ticker != "VIX":
+        netGamma_scaled = netGamma / marketCap
+        netGamma_barbon = netGamma / MAdollarVolume
+    else:
+        netGamma_scaled = netGamma / MAdollarVolume
+        
     IVOL            = data["IVOL"].to_numpy()
    
+    #Standardize meaesure
+    netGamma_scaled = (netGamma_scaled - np.mean(netGamma_scaled)) / np.std(netGamma_scaled)
+    
     #Concatenate Independent variables to X matrix
     X = np.concatenate((netGamma_scaled.reshape(-1,1), IVOL.reshape(-1,1)), axis = 1)
     
@@ -145,7 +165,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
     #Contatenate laged values to control matrix
     X_control = np.concatenate((IVOL2, IVOL3, AbsXsRet1, AbsXsRet2, AbsXsRet3), axis = 1)
     X_control = np.concatenate((X[2:], X_control), axis = 1)
-    
+    y_control = np.abs(xsret[2:])
     
     #Feature correlation
     IndependentVarDf = pd.DataFrame.from_records(X_control, columns = [r'$netGamma_t%.5f$', r'$IVOL_t%.5f$', r'$IVOL_{t-1}%.5f$', r'$IVOL_{t-2}%.5f$', r'$|R_t|%.5f$', r'$|R_{t-1}|%.5f$', r'$|R_{t-2}|%.5f$' ])
@@ -161,12 +181,11 @@ for j in np.arange(0, len(UnderlyingTicker)):
         y      = np.abs(xsret[lag:])
         nObs   = np.size(y)
    
-       
         X      = X[0:-lag, :]       #Lag matrix accordingly 
         X      = sm.add_constant(X) #add constant
     
         reg       = sm.OLS(y, X).fit()
-        coefs     = np.round(reg.params, decimals = 3)
+        coefs     = np.round(reg.params*100, decimals = 3) #Multiply coefs by 100 to get in bps format
         tvals     = np.round(reg.tvalues, decimals = 3)
         pvals     = np.round(reg.pvalues, decimals = 3)
         r_squared = np.round(reg.rsquared, decimals = 3)
@@ -202,25 +221,87 @@ for j in np.arange(0, len(UnderlyingTicker)):
         print(lag_df.to_latex(index=False, escape = False)) #print to latex
 
         
+
+        ### Alternative Result Print
         legend = np.array(['$netGamma_t$', " ", '$IVOL_t$', " ", 'Intercept', " ", '$R^2$' ])
         
         sign_test = []
-        for coef in coefs:
-            if coef < 0.01:
+        for pval in pvals:
+            if pval < 0.01:
                 sign_test.append("***")
-            elif coef < 0.05:
+            elif pval < 0.05:
                 sign_test.append("**")
-            elif coef < 0.1:
+            elif pval < 0.1:
                 sign_test.append("*")
             else:
                 sign_test.append("")
         
             
-        results = np.array([coefs[1], ])
+        results = np.array([ str(coefs[1]) + sign_test[1], "(" + str(tvals[1]) + ")", \
+                             str(coefs[2]/100) + sign_test[2], "(" + str(tvals[2]) + ")", \
+                             str(coefs[0]/100) + sign_test[0], "(" + str(tvals[0]) + ")", r_squared])        
+        
+        resultsDf = pd.DataFrame()
+        if j == 0:
+            resultsDf["Lag = " + str(lag) + " day"] = legend
+            resultsDf[ticker] = results
+            allresDf = resultsDf
+        else:
+            resultsDf[ticker] = results
+       
+            
+        if j > 0:
+            allresDf = pd.concat((allresDf, resultsDf), axis = 1)
 
 
+        ##### Control Variable Regression
+        y_control = y_control[1:]
+        X_control = X_control[0:-lag, :]       #Lag matrix accordingly 
+        X_control = sm.add_constant(X_control) #add constant
+    
+        reg_control       = sm.OLS(y_control, X_control).fit()
+        coefs_control     = np.round(reg_control.params, decimals = 3) #Multiply coefs by 100 to get in bps format
+        tvals_control     = np.round(reg_control.tvalues, decimals = 3)
+        pvals_control     = np.round(reg_control.pvalues, decimals = 3)
+        r_squared_control = np.round(reg_control.rsquared, decimals = 3)
+            
+        ### Alternative Result Print
+        legend_control = np.array(['$netGamma_t$', " ", '$IVOL_t$', " ", '$IVOL_{t-1}$', " ", '$IVOL_{t-2}$', " ", \
+                           '$|R_{t-1}|$', " ", '$|R_{t-2}|$', " ", '$|R_{t-3}|$', " ",  'Intercept', " ", '$R^2$' ])
+        
+        sign_test_control = []
+        for pval in pvals_control:
+            if pval < 0.01:
+                sign_test_control.append("***")
+            elif pval < 0.05:
+                sign_test_control.append("**")
+            elif pval < 0.1:
+                sign_test_control.append("*")
+            else:
+                sign_test_control.append("")
 
-        sys.exit()     
+        results_control = np.array([ str(coefs_control[1]) + sign_test_control[1], "(" + str(tvals_control[1]) + ")", \
+                                     str(coefs_control[2]) + sign_test_control[2], "(" + str(tvals_control[2]) + ")", \
+                                     str(coefs_control[3]) + sign_test_control[3], "(" + str(tvals_control[3]) + ")", \
+                                     str(coefs_control[4]) + sign_test_control[4], "(" + str(tvals_control[4]) + ")", \
+                                     str(coefs_control[5]) + sign_test_control[5], "(" + str(tvals_control[5]) + ")", \
+                                     str(coefs_control[6]) + sign_test_control[6], "(" + str(tvals_control[6]) + ")", \
+                                     str(coefs_control[7]) + sign_test_control[7], "(" + str(tvals_control[7]) + ")", \
+                                     str(coefs_control[0]) + sign_test_control[0], "(" + str(tvals_control[0]) + ")", r_squared])        
+        
+        
+        results_controlDf = pd.DataFrame()
+        if j == 0:
+            results_controlDf["Lag = " + str(lag) + " day"] = legend_control
+            results_controlDf[ticker] = results_control
+            allres_controlDf = results_controlDf
+        else:
+            results_controlDf[ticker] = results_control
+       
+            
+        if j > 0:
+            allres_controlDf = pd.concat((allres_controlDf, results_controlDf), axis = 1)
+            
         
         if scatter == True:
             #x        = np.linspace(np.min(X[:, 1]), np.max(X[:, 1]), np.size(X[:, 1]))
@@ -255,13 +336,13 @@ for j in np.arange(0, len(UnderlyingTicker)):
             plot = plotResiduals(residuals, lag = lag, ticker = ticker)
     
     #Concatenate
-    AssetDf = pd.concat(regResults, axis = 1)
-    print(AssetDf)
+    #AssetDf = pd.concat(regResults, axis = 1)
+    #print(AssetDf)
     
-    RegResultList.append(AssetDf)
+    #RegResultList.append(AssetDf)
     
-   
-    
+    print(allresDf.to_latex(index=False, escape = False)) #print to latex
+    print(allres_controlDf.to_latex(index=False, escape = False)) #print to latex    
    
     
 # X   = netGamma[0:-lag]
