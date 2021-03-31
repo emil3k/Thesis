@@ -19,11 +19,11 @@ import gammafunctions as gf
 import sys
 
 ### SET WHICH ASSET TO BE IMPORTED #######################################################
-UnderlyingAssetName   = "RUT Index"
-UnderlyingTicker      = "RUT"
+UnderlyingAssetName   = "SPX Index"
+UnderlyingTicker      = "SPX"
 
-UnderlyingETFName     = "IWM US Equity"
-UnderlyingETFTicker   = "IWM"
+UnderlyingETFName     = "SPY US Equity"
+UnderlyingETFTicker   = "SPY"
 
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
 prefColor             = '#0504aa'
@@ -328,49 +328,18 @@ plt.legend()
 
 
 
+#smoothCols = np.array(["aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
+#                        "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingTicker + " Volume",\
+#                            UnderlyingTicker + " Dollar Volume"])
+
+#dataToSmooth = indexData[smoothCols].to_numpy()
+#dataToSmooth = np.concatenate((dataToSmooth, deltaAdjNetOpenInterest_scaled.reshape(-1,1)), axis = 1) #add deltaadjusted open interest scaled
+
+#lookback = 100
+#[aggregateSmooth, smoothDates] = smoothData(dataToSmooth, indexDates, lookback)
 
 
-
-sys.exit()
-
-smoothCols = np.array(["aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
-                        "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingTicker + " Volume",\
-                            UnderlyingTicker + " Dollar Volume"])
-
-dataToSmooth = indexData[smoothCols].to_numpy()
-dataToSmooth = np.concatenate((dataToSmooth, deltaAdjNetOpenInterest_scaled.reshape(-1,1)), axis = 1) #add deltaadjusted open interest scaled
-
-
-lookback = 100
-[aggregateSmooth, smoothDates] = smoothData(dataToSmooth, indexDates, lookback)
-
-
-## Volume and open interest over time
-plt.figure()
-plt.plot(smoothDates, aggregateSmooth[:, 6] / 1000000, color = '#0504aa', label = "Delta Adjusted Option Volume")
-plt.plot(smoothDates, aggregateSmooth[:, 7]/ 1000000, color = "black", label = "Volume " + UnderlyingTicker)
-plt.title(str(lookback) + "-day MA Volume for " + UnderlyingTicker + " and "+ UnderlyingTicker + " Options" + " (" + periodLabel + ")")
-plt.ylabel("Volume (log scale)")
-plt.legend()
-plt.yscale("log")
-
-plt.figure()
-plt.plot(smoothDates, aggregateSmooth[:, 2] / 1000000,color = '#0504aa', label = "Delta Adjusted Open Interest")
-#plt.plot(smoothDates, aggregateSmooth[:, -2]/ 1000000, color = "black", label = "Volume " + UnderlyingTicker)
-plt.title(str(lookback) + "-day MA Delta Adj. Open Interest for "+ UnderlyingTicker + " Options" + " (" + periodLabel + ")")
-plt.ylabel("Delta Adj. Open Interest (in Millions)")
-plt.legend()
-#plt.yscale("log")
-
-## Volume and open interest over time
-plt.figure()
-plt.plot(smoothDates, aggregateSmooth[:, -1] , color = '#0504aa', label = "Delta Adjusted Open Interest")
-plt.title(str(lookback) + "-day MA Net Open Interest for " + UnderlyingTicker + " (" + periodLabel + ")")
-plt.ylabel("Net Open Interest (in USD, Market Cap Adjusted)")
-plt.legend()
-
-   
-
+  
    
 
 ############# REVERSALS #################
@@ -395,44 +364,90 @@ def computeReversalBars(netGamma, Returns, lag = 1):
    
     return bars
 
-lag   = 1
-bars  = computeReversalBars(netGamma, Returns, lag = lag)
+lag = 1
+CondReversalBarsIndex  = computeReversalBars(netGammaIndex_scaled, IndexXsReturns, lag = lag)
+CondReversalBarsETF    = computeReversalBars(netGammaETF_scaled, ETFXsReturns, lag = lag)
 ticks = np.array(["Neg-Neg", "Neg-Pos", "Pos-Neg", "Pos-Pos"])
 
 
-## Unconditional Reversals
-# Uncond. on Gamma
-negSameDay      = (Returns[0:-lag] < 0)      #negative return boolean
-posSameDay      = (Returns[0:-lag] > 0)      #positive return boolean
-nextDayReturns  = Returns[lag:]              #next day (lag) return
-afterNegSameDay = nextDayReturns[negSameDay] #conditional mean
-afterPosSameDay = nextDayReturns[posSameDay] #conditional mean
+#######################################
+### Unconditional on Gamma Reversals ### 
+#Index
+negSameDayIndex      = (IndexXsReturns[0:-lag] < 0)         #negative return boolean
+posSameDayIndex      = (IndexXsReturns[0:-lag] > 0)         #positive return boolean
+nextDayReturnsIndex  = IndexXsReturns[lag:]                 #next day (lag) return
+afterNegSameDayIndex = nextDayReturnsIndex[negSameDayIndex] #conditional mean
+afterPosSameDayIndex = nextDayReturnsIndex[posSameDayIndex] #conditional mean
+UncondReversalBarsIndex  = np.array([np.mean(afterNegSameDayIndex), np.mean(afterPosSameDayIndex), np.mean(afterNegSameDayIndex), np.mean(afterPosSameDayIndex)])
 
-bars2  = np.array([np.mean(afterNegSameDay), np.mean(afterPosSameDay), np.mean(afterNegSameDay), np.mean(afterPosSameDay)])
+#ETF
+negSameDayETF          = (ETFXsReturns[0:-lag] < 0)         #negative return boolean
+posSameDayETF          = (ETFXsReturns[0:-lag] > 0)         #positive return boolean
+nextDayReturnsETF      = ETFXsReturns[lag:]                 #next day (lag) return
+afterNegSameDayETF     = nextDayReturnsETF[negSameDayETF]   #conditional mean
+afterPosSameDayETF     = nextDayReturnsETF[posSameDayETF]   #conditional mean
+UncondReversalBarsETF  = np.array([np.mean(afterNegSameDayETF), np.mean(afterPosSameDayETF), np.mean(afterNegSameDayETF), np.mean(afterPosSameDayETF)])
+
 
 # Unconditional
-meanReturn = np.mean(Returns[lag:])
-bars3 = np.array([meanReturn, meanReturn, meanReturn, meanReturn])
+meanXsReturnIndex   = np.mean(IndexXsReturns[lag:])
+meanXsReturnETF     = np.mean(ETFXsReturns[lag:])
+MeanReturnBarsIndex = np.array([meanXsReturnIndex, meanXsReturnIndex, meanXsReturnIndex, meanXsReturnIndex])
+MeanReturnBarsETF   = np.array([meanXsReturnETF, meanXsReturnETF, meanXsReturnETF, meanXsReturnETF])
 
 
 #Bar Plot
 barWidth = 0.3
 # Set position of bar on X axis
-r1 = np.arange(len(bars))
+r1 = np.arange(len(CondReversalBarsIndex))
 r2 = [x + barWidth for x in r1]
 r3 = [x + barWidth for x in r2]
 
+#Bar Plot Index
 plt.figure()
-plt.bar(r1, bars, width = barWidth, color = prefColor, label = "Conditional on gamma and return ")  
-plt.bar(r2, bars2, width = barWidth, color = "red", label = "Conditional on return")
-plt.bar(r3, bars3, width = barWidth, color = "black", label = "Unconditonal")
-plt.title("Average Returns By Previous Day Gamma and Return" + " (" + periodLabel + ")")
-plt.xlabel("Previous Day Net Gamma and Return Combinations")
-plt.ylabel("Average Daily Return")
+plt.bar(r1, CondReversalBarsIndex*100,   width = barWidth, color = "midnightblue", alpha = 0.8, label = "Conditional on gamma and return")  
+plt.bar(r2, UncondReversalBarsIndex*100, width = barWidth, color = "lightblue", alpha = 0.8,  label = "Conditional on return")
+plt.bar(r3, MeanReturnBarsIndex*100,     width = barWidth, color = "silver",  alpha = 0.8, label = "Unconditonal")
+plt.title("Avg. Returns By Prev. Day Gamma and Return, " + UnderlyingTicker)
+plt.xlabel("Previous Day Net Gamma and Return Combinations" + " (" + periodLabelIndex + ")")
+plt.ylabel("Average Daily Excess Return (%)")
 plt.xticks(r1 + barWidth/2, ticks)
 plt.legend()
 plt.show()
 
+#Bar Plot Index alternative color
+plt.figure()
+plt.bar(r1, CondReversalBarsIndex*100,   width = barWidth, color = prefColor, alpha = 0.8, label = "Conditional on gamma and return")  
+plt.bar(r2, UncondReversalBarsIndex*100, width = barWidth, color = "red", alpha = 0.8,  label = "Conditional on return")
+plt.bar(r3, MeanReturnBarsIndex*100,     width = barWidth, color = "silver",  alpha = 0.8, label = "Unconditonal")
+plt.title("Avg. Returns By Prev. Day Gamma and Return, " + UnderlyingTicker)
+plt.xlabel("Previous Day Net Gamma and Return Combinations" + " (" + periodLabelIndex + ")")
+plt.ylabel("Average Daily Excess Return (%)")
+plt.xticks(r1 + barWidth/2, ticks)
+plt.legend()
+plt.show()
+
+
+#Bar Plot ETF
+plt.figure()
+plt.bar(r1, CondReversalBarsETF*100,   width = barWidth, color = prefColor, alpha = 0.8, label = "Conditional on gamma and return")  
+plt.bar(r2, UncondReversalBarsETF*100, width = barWidth, color = "red", alpha = 0.8,  label = "Conditional on return")
+plt.bar(r3, MeanReturnBarsETF*100,     width = barWidth, color = "silver",  alpha = 0.8, label = "Unconditonal")
+plt.title("Avg. Returns By Prev. Day Gamma and Return, " + UnderlyingTicker)
+plt.xlabel("Previous Day Net Gamma and Return Combinations" + " (" + periodLabelIndex + ")")
+plt.ylabel("Average Daily Excess Return (%)")
+plt.xticks(r1 + barWidth/2, ticks)
+plt.legend()
+plt.show()
+
+
+
+
+
+
+
+
+sys.exit()
 
 #Conditional Autocorrelation
 nDays  = np.size(netGamma)

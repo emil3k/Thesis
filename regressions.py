@@ -179,13 +179,26 @@ for j in np.arange(0, len(UnderlyingTicker)):
     plt.title("Independent Variable Correlation, " + ticker)
     
     ######## Illiquidity regression ###############
-    
     negNetGammaDummy   = (netGamma_scaled < 0)
     IlliquidDummy      = (ILLIQ > ILLIQMedian)
     InteractionDummy   = IlliquidDummy * negNetGammaDummy
     
     X_liq = np.concatenate((negNetGammaDummy.reshape(-1,1), IlliquidDummy.reshape(-1,1), InteractionDummy.reshape(-1,1)), axis = 1)
     
+    ######## Reversal Regression ####################
+    #Dummies
+    negNetGammaDummy = (netGamma_scaled < 0)
+    posNetGammaDummy = (netGamma_scaled > 0)
+    negReturnDummy   = (xsret < 0)
+    posReturnDummy   = (xsret > 0)
+    
+    #Interactions
+    negneg = negNetGammaDummy * negReturnDummy
+    negpos = negNetGammaDummy * posReturnDummy
+    posneg = posNetGammaDummy * negReturnDummy
+    pospos = posNetGammaDummy * posReturnDummy
+    
+    X_rev = np.concatenate((negneg.reshape(-1,1), negpos.reshape(-1,1), posneg.reshape(-1,1), pospos.reshape(-1,1)), axis = 1)
     
     
     ####################################################
@@ -292,7 +305,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
         results_controlDf[ticker] = results_control
    
         
-    if j > 0:
+    if j > 0 :
         allres_controlDf = pd.concat((allres_controlDf, results_controlDf), axis = 1)
         
     
@@ -326,22 +339,68 @@ for j in np.arange(0, len(UnderlyingTicker)):
             sign_test_liq.append("")
 
     results_liq = np.array([ str(coefs_liq[1]) + sign_test_liq[1], "(" + str(tvals_liq[1]) + ")", \
-                                 str(coefs_liq[2]) + sign_test_liq[2], "(" + str(tvals_liq[2]) + ")", \
-                                 str(coefs_liq[3]) + sign_test_liq[3], "(" + str(tvals_liq[3]) + ")", \
-                                 str(coefs_liq[0]) + sign_test_liq[0], "(" + str(tvals_liq[0]) + ")", r_squared])        
+                             str(coefs_liq[2]) + sign_test_liq[2], "(" + str(tvals_liq[2]) + ")", \
+                             str(coefs_liq[3]) + sign_test_liq[3], "(" + str(tvals_liq[3]) + ")", \
+                             str(coefs_liq[0]) + sign_test_liq[0], "(" + str(tvals_liq[0]) + ")", r_squared])        
     #Store in DataFrame      
     results_liqDf = pd.DataFrame()
     if j == 0:
         results_liqDf["Lag = " + str(lag) + " day"] = legend_liq
         results_liqDf[ticker] = results_liq
         allres_liqDf = results_liqDf
-    else:
+    elif j < len(UnderlyingTicker)-1:
         results_liqDf[ticker] = results_liq
            
-    if j > 0:
+    if j > 0 and j < len(UnderlyingTicker)-1:
         allres_liqDf = pd.concat((allres_liqDf, results_liqDf), axis = 1)
+   
+    ########################################
+    ######### Reversal Regression #########
+   
+    y_rev  = xsret[lag:]
+    X_rev  = sm.add_constant(X_rev*1)
+    X_rev  = X_rev[0:-lag]
     
- 
+    reg_rev       = sm.OLS(y_rev, X_rev).fit()
+    coefs_rev     = np.round(reg_rev.params*100, decimals = 3)   #Multiply net gamma coef by 100 to get bps format
+    tvals_rev     = np.round(reg_rev.tvalues, decimals = 3)
+    pvals_rev     = np.round(reg_rev.pvalues, decimals = 3)
+    r_squared_rev = np.round(reg_rev.rsquared, decimals = 3)
+    
+    ### Alternative Result Print
+    legend_rev = np.array(['Neg-Neg', " ", 'Neg-Pos', " ", 'Pos-Neg', " ",'Pos-Pos', " ", 'Intercept', " ", '$R^2$' ])
+        
+    sign_test_rev = []
+    for pval in pvals_rev:
+        if pval < 0.01:
+            sign_test_rev.append("***")
+        elif pval < 0.05:
+            sign_test_rev.append("**")
+        elif pval < 0.1:
+            sign_test_rev.append("*")
+        else:
+            sign_test_rev.append("")
+
+    results_rev = np.array([ str(coefs_rev[1]) + sign_test_rev[1], "(" + str(tvals_rev[1]) + ")", \
+                             str(coefs_rev[2]) + sign_test_rev[2], "(" + str(tvals_rev[2]) + ")", \
+                             str(coefs_rev[3]) + sign_test_rev[3], "(" + str(tvals_rev[3]) + ")", \
+                             str(coefs_rev[4]) + sign_test_rev[4], "(" + str(tvals_rev[4]) + ")", \
+                             str(coefs_rev[0]) + sign_test_rev[0], "(" + str(tvals_rev[0]) + ")", r_squared])        
+    #Store in DataFrame      
+    results_revDf = pd.DataFrame()
+    if j == 0:
+        results_revDf["Lag = " + str(lag) + " day"] = legend_rev
+        results_revDf[ticker] = results_rev
+        allres_revDf = results_revDf
+    elif j < len(UnderlyingTicker)-1:
+        results_revDf[ticker] = results_rev
+           
+    if j > 0 and j < len(UnderlyingTicker)-1:
+        allres_revDf = pd.concat((allres_revDf, results_revDf), axis = 1)
+    
+   
+    
+   
     
     
     
@@ -388,7 +447,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
 print(allresDf.to_latex(index=False, escape = False)) 
 print(allres_controlDf.to_latex(index=False, escape = False))     
 print(allres_liqDf.to_latex(index=False, escape = False))      
-    
+print(allres_revDf.to_latex(index=False, escape = False))   
 
 # X   = netGamma[0:-lag]
 # X   = sm.add_constant(X)
