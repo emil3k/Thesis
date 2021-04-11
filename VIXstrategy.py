@@ -24,7 +24,7 @@ prefColor             = '#0504aa'
 
 #Load data
 #VIX Futures
-#VIXFutures        = pd.read_excel(loadlocFutures + "VIXFuturesData.xlsx", sheet_name = "Prices")
+#VIXFuturesRolled  = pd.read_excel(loadlocFutures + "VIXFuturesData.xlsx", sheet_name = "Prices")
 VIXFuturesPrices  = pd.read_excel(loadlocFutures + "VIXFuturesDataUnrolled.xlsx", sheet_name = "Prices")
 VIXFuturesTickers = pd.read_excel(loadlocFutures + "VIXFuturesDataUnrolled.xlsx", sheet_name = "Tickers")
   
@@ -32,6 +32,8 @@ VIXFuturesTickers = pd.read_excel(loadlocFutures + "VIXFuturesDataUnrolled.xlsx"
 AggregateData   = pd.read_csv(loadlocAgg + UnderlyingTicker + "AggregateData.csv")
 AggregateDates  = AggregateData["Dates"].to_numpy()
 netGamma        = AggregateData["netGamma"].to_numpy()
+
+
 
 #Compute Daily Rf
 def computeRfDaily(data, withDates = False):
@@ -58,12 +60,15 @@ datesTime  = pd.to_datetime(VIXDates, format = '%Y-%m-%d')
 daycount   = bt.dayCount(datesTime) #count days between each obs.
 VIXDates   = bt.yyyymmdd(datesTime) #get to right format
 
+
+
 #Roll futures returns
-futPrices     = VIXFuturesPrices.iloc[:, 1:-1].to_numpy()
+futPrices     = VIXFuturesPrices.iloc[:, 1:-2].to_numpy()
 futTickers    = VIXFuturesTickers.iloc[:, 1:].to_numpy()
 nContracts    = np.size(futPrices, 1) - 1
 RolledReturns = np.zeros((len(futPrices), nContracts))
-RolledReturns[1:, :], isRollover = bt.RolloverFutures(futPrices[:, 0:-1], futPrices[:, 1:], futTickers, returnRoll = True)
+RolledReturns[1:, :], isRollover = bt.RolloverFutures(futPrices[:, 0:-1], futPrices[:, 1:], futTickers[:, 0:-1], returnRoll = True)
+
 VIXFuturesReturns = np.concatenate((VIXDates.reshape(-1,1), RolledReturns), axis = 1)  
 
 
@@ -77,36 +82,36 @@ endDate   = VIXDates[-1] + 1
 
 AggregateDataTr = bt.trimToDates(syncArr, syncArr[:, 0], startDate, endDate)
 #SyncMat        = bt.SyncData(VIXFutures[1:, :], AggregateDataTr, fillPrevious = True, removeNonOverlapping = False)
-SyncMat         = bt.SyncData(VIXFuturesReturns, AggregateDataTr, fillPrevious = True, removeNonOverlapping = False)
+SyncMat         = bt.SyncData(VIXFuturesReturns, AggregateDataTr, fillPrevious = False, removeNonOverlapping = True)
 
 
 #Compute Returns
-#VIXReturns = np.zeros((len(SyncMat), 5))
-#VIXReturns[1:, :] = SyncMat[1:, 1:6] / SyncMat[0:-1, 1:6] - 1
 RfDaily    = SyncMat[:, -1]
-VIXReturns = SyncMat[:, 1:nContracts]
-
+VIXReturns = SyncMat[:, 1:nContracts + 1]
+netGamma   = SyncMat[:, 4]
 
 #Timing strategy
 lag = 1
 scale = 0.2
 
 #Long strategies
-gammaSignal     = (SyncMat[:, -2] < 0) #long when gamma is negative
+gammaSignal         = (netGamma < 0) #long when gamma is negative
 timedFrontReturns   = gammaSignal[0:-lag] * VIXReturns[lag:, 0] * scale
 timedBackReturns    = gammaSignal[0:-lag] * VIXReturns[lag:, 1] * scale
 untimedFrontReturns = VIXReturns[lag:, 0] * scale
 untimedBackReturns  = VIXReturns[lag:, 1] * scale
 
 #Short Strategies
-shortSignal = (SyncMat[:, -2] > 0)
-timedShortFrontReturns = (-1)*shortSignal[0:-lag]*VIXReturns[lag:, 0]*scale #gamma timed front
-timedShortBackReturns  = (-1)*shortSignal[0:-lag]*VIXReturns[lag:, 1]*scale #gamma timed back
+shortSignal = (netGamma > 0)
+timedShortFrontReturns   = (-1)*shortSignal[0:-lag]*VIXReturns[lag:, 0]*scale #gamma timed front
+timedShortBackReturns    = (-1)*shortSignal[0:-lag]*VIXReturns[lag:, 1]*scale #gamma timed back
+
+
 
 #Combo Strategies
 timedLSFrontReturns = timedFrontReturns + timedShortFrontReturns#long/short gamma-timed front
-timedLSBackReturns  = timedBackReturns + timedShortBackReturns #long/short gamma-timed back
-timedLSTermReturns  = timedBackReturns +    timedShortFrontReturns   #long back, short front gamma-timed
+timedLSBackReturns  = timedBackReturns +  timedShortBackReturns #long/short gamma-timed back
+timedLSTermReturns  = timedBackReturns +  timedShortFrontReturns   #long back, short front gamma-timed
 
 
 #Cumulative Returns
@@ -119,8 +124,8 @@ cumUntimedBack  = np.cumprod(1 + untimedBackReturns)
 #Short
 cumTimedShortFront   = np.cumprod(1 + timedShortFrontReturns)
 cumTimedShortBack    = np.cumprod(1 + timedShortBackReturns)
-cumUntimedShortFront =  np.cumprod(1 - untimedFrontReturns)
-cumUntimedShortBack  = np.cumprod(1 - untimedBackReturns)
+cumUntimedShortFront = np.cumprod(1 + (-1)*untimedFrontReturns)
+cumUntimedShortBack  = np.cumprod(1 + (-1)*untimedBackReturns)
 
 #Long/Short Combination
 cumTimedLSFront = np.cumprod(1 + timedLSFrontReturns)
@@ -144,9 +149,9 @@ plt.legend()
 
 #Short strategies
 plt.figure()
-plt.plot(dates4fig, cumTimedShortFront, "k", label = "Gamma-timed Front")
-plt.plot(dates4fig, cumTimedShortBack, "b", label = "Gamma-timed Back")
-#plt.plot(dates4fig, cumUntimedShortFront, "--k", label = "Untimed Front")
+plt.plot(dates4fig, cumTimedShortFront, "b", label = "Gamma-timed Front")
+#plt.plot(dates4fig, cumTimedShortBack, "b", label = "Gamma-timed Back")
+plt.plot(dates4fig, cumUntimedShortFront, "--k", label = "Untimed Front")
 #plt.plot(dates4fig, cumUntimedShortBack, "--b", label = "Untimed Back")
 plt.title("Cumulative Returns Short Strategies")
 plt.ylabel("Cumulative Excess Returns")

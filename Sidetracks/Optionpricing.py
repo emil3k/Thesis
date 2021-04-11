@@ -47,15 +47,64 @@ def ComputeBS(S, K, T, r, sigma, cp_flag):
         Price = np.exp(-r*T)*K*norm.cdf(-d2) - S * norm.cdf(-d1)
         Delta = norm.cdf(-d1)
     
-    return Price, Delta
+    Gamma = norm.pdf(d1) / (S * sigma * np.sqrt(T))    
+    return Price, Delta, Gamma
 
-K     = 100
-sigma = 0.20
-S     = 110
-rf = 0
-[BSPrice, Delta] = ComputeBS(S, K, T, rf, sigma, 0)
-print(BSPrice)
-print(Delta)
+K      = 100
+sigma  = 0.20
+rf     = 0.01
+S_list = np.arange(80, 120)
+T      = 30 / 360
+Delta_list = np.zeros((len(S_list),))
+Gamma_list = np.zeros((len(S_list),))
+
+for i in np.arange(0, len(S_list)):
+    S = S_list[i]
+    Price, Delta, Gamma = ComputeBS(S, K, T, rf, sigma, 0)
+    Delta_list[i] = Delta
+    Gamma_list[i] = Gamma
+
+#Plot relationships
+
+fig, ax = plt.subplots()
+ax.plot(S_list, Gamma_list, color = "red", alpha = 0.8, label = "Gamma")
+ax.set_xlabel("Stock Price")
+ax.set_ylabel("Gamma")
+ax.set_title("Delta and Gamma vs Stock Price")
+
+ax2 = ax.twinx()
+ax2.plot(S_list, Delta_list, color = '#0504aa', alpha = 0.8, label = "Delta")
+ax2.set_ylabel("Delta")
+#Legend
+lines, labels = ax.get_legend_handles_labels()
+lines2, labels2 = ax2.get_legend_handles_labels()
+ax2.legend(lines + lines2, labels + labels2, loc=0)
+
+
+plt.figure()
+plt.plot(S_list, Delta_list, color = '#0504aa', alpha = 0.8, label = "Delta")
+plt.title("Delta vs Stock Price")
+plt.ylabel("Delta")
+plt.xlabel("Stock")
+plt.legend()
+
+plt.figure()
+plt.plot(S_list, Gamma_list, color = "red", alpha = 0.8, label = "Gamma")
+plt.title("Gamma vs Stock Price")
+plt.ylabel("Gamma")
+plt.xlabel("Stock")
+plt.legend()
+
+plt.figure()
+plt.plot(Delta_list, Gamma_list)
+plt.title("Gamma vs Delta")
+plt.ylabel("Gamma")
+plt.xlabel("Delta")
+
+#Simulate Delta and Gamma 
+
+norm.pdf(1)
+norm.cdf(1)
 
 
 sys.exit()

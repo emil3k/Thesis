@@ -149,8 +149,9 @@ for j in np.arange(0, len(UnderlyingTicker)):
     IVOL            = data["IVOL"].to_numpy()
    
     #Standardize meaesure
-    netGamma_scaled = (netGamma_scaled - np.mean(netGamma_scaled)) / np.std(netGamma_scaled)
-    
+    #netGamma_scaled = (netGamma_scaled - np.mean(netGamma_scaled)) / np.std(netGamma_scaled)
+    netGamma_scaled = netGamma_scaled / np.std(netGamma_scaled)
+        
     #Concatenate Independent variables to X matrix
     X = np.concatenate((netGamma_scaled.reshape(-1,1), IVOL.reshape(-1,1)), axis = 1)
     
@@ -385,7 +386,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
                              str(coefs_rev[2]) + sign_test_rev[2], "(" + str(tvals_rev[2]) + ")", \
                              str(coefs_rev[3]) + sign_test_rev[3], "(" + str(tvals_rev[3]) + ")", \
                              str(coefs_rev[4]) + sign_test_rev[4], "(" + str(tvals_rev[4]) + ")", \
-                             str(coefs_rev[0]) + sign_test_rev[0], "(" + str(tvals_rev[0]) + ")", r_squared])        
+                                 str(coefs_rev[0]) + sign_test_rev[0], "(" + str(tvals_rev[0]) + ")", r_squared])        
     #Store in DataFrame      
     results_revDf = pd.DataFrame()
     if j == 0:

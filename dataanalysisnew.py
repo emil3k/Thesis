@@ -441,6 +441,27 @@ plt.legend()
 plt.show()
 
 
+############################
+#Assumptions Score Bar plot
+IndexScores = np.array([7, 4, 0.1, 1])
+StockScores = np.array([2, 4, 5, 3])
+labels      = np.array(["A1 Support", "A2 Support", "A1 Contradict", "A2 Contradict"])
+
+#Autocorrelation plots
+x     = np.arange(0, len(IndexScores))
+width = 0.3
+plt.figure()
+plt.bar(x - width/2, IndexScores, width = width, color = '#0504aa', alpha = 0.8, label = "Index")  
+plt.bar(x + width/2, StockScores, width = width, color = "red", alpha = 0.8, label = "Single Name")
+plt.title("Assumption Scores for Index and Single Names")
+plt.ylabel("Number of Papers Supporting/Contradicting")
+plt.xticks(x, labels, rotation='horizontal')
+plt.legend()
+plt.show()
+
+
+
+
 
 
 
@@ -510,6 +531,9 @@ plt.xticks(x, Pairs, rotation='horizontal')
 plt.ylabel("Correlation Coefficient")
 plt.legend()
 plt.show()
+
+
+
 
 
 

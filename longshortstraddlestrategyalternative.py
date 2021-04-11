@@ -742,9 +742,9 @@ checkDateOptions = OptionDataArr[(OptionDates == checkDate[0]), :]
 
 
 #Compute performance
-callPerformance     = bt.ComputePerformance(callReturnsScaled, RfDaily, 0, 255)
-putPerformance      = bt.ComputePerformance(putReturnsScaled, RfDaily, 0, 255)
-straddlePerformance = bt.ComputePerformance(straddleReturnsScaled, RfDaily, 0, 255)
+callPerformance     = bt.ComputePerformance(straddleReturnsLongScaled, RfDaily, 0, 255)
+putPerformance      = bt.ComputePerformance(straddleReturnsShortScaled, RfDaily, 0, 255)
+straddlePerformance = bt.ComputePerformance(straddleReturnsLSScaled, RfDaily, 0, 255)
 
 #Construct Latex Table
 def constructPerformanceDf(performanceList, colNames, to_latex = True):
@@ -766,7 +766,7 @@ def constructPerformanceDf(performanceList, colNames, to_latex = True):
     return performanceDf
 
 
-colNames = np.array(["statistic", "Calls Only", "Puts Only", "Straddle"])
+colNames = np.array(["statistic", "Long Only", "Short Only", "Long-Short"])
 perfList = [callPerformance, putPerformance, straddlePerformance]
 test     = constructPerformanceDf(perfList, colNames = colNames, to_latex = True)
 
