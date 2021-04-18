@@ -150,8 +150,9 @@ for j in np.arange(0, len(UnderlyingTicker)):
    
     #Standardize meaesure
     #netGamma_scaled = (netGamma_scaled - np.mean(netGamma_scaled)) / np.std(netGamma_scaled)
-    netGamma_scaled = netGamma_scaled / np.std(netGamma_scaled)
-        
+    #netGamma_scaled = netGamma_scaled / np.std(netGamma_scaled)
+     
+    
     #Concatenate Independent variables to X matrix
     X = np.concatenate((netGamma_scaled.reshape(-1,1), IVOL.reshape(-1,1)), axis = 1)
     
@@ -213,11 +214,11 @@ for j in np.arange(0, len(UnderlyingTicker)):
     X      = X[0:-lag, :]       #Lag matrix accordingly 
     X      = sm.add_constant(X) #add constant
 
-    reg       = sm.OLS(y, X).fit()
-    coefs     = np.round(reg.params*100, decimals = 3) #Multiply coefs by 100 to get in bps format
-    tvals     = np.round(reg.tvalues, decimals = 3)
-    pvals     = np.round(reg.pvalues, decimals = 3)
-    r_squared = np.round(reg.rsquared, decimals = 3)
+    reg       = sm.OLS(y, X).fit(cov_type = "HAC", cov_kwds = {'maxlags':1})
+    coefs     = np.round(reg.params*100, decimals = 4) #Multiply coefs by 100 to get in bps format
+    tvals     = np.round(reg.tvalues, decimals = 4)
+    pvals     = np.round(reg.pvalues, decimals = 4)
+    r_squared = np.round(reg.rsquared, decimals = 4)
         
          
     #LASSO FOR Parameter selection
@@ -229,7 +230,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
         
 
     ### Result Print
-    legend = np.array(['$netGamma_{t - ' + str(lag) + '}$', " ", '$IVOL_{t-1}$', " ", 'Intercept', " ", '$R^2$' ])
+    legend = np.array(['$\Gamma^{MM}_{t - ' + str(lag) + '}$', " ", '$IVOL_{t-1}$', " ", 'Intercept', " ", '$R^2$' ])
     
     sign_test = []
     for pval in pvals:
@@ -265,15 +266,15 @@ for j in np.arange(0, len(UnderlyingTicker)):
     X_control = X_control[0:-lag, :]       #Lag matrix accordingly 
     X_control = sm.add_constant(X_control) #add constant
 
-    reg_control       = sm.OLS(y_control, X_control).fit()
+    reg_control       = sm.OLS(y_control, X_control).fit(cov_type = "HAC", cov_kwds = {'maxlags':1})
     #netGamma_coef     = np.roun(reg_control.params[1]*100, decimals = 3) 
-    coefs_control     = np.round(reg_control.params*100, decimals = 3)   #Multiply net gamma coef by 100 to get bps format
-    tvals_control     = np.round(reg_control.tvalues, decimals = 3)
-    pvals_control     = np.round(reg_control.pvalues, decimals = 3)
-    r_squared_control = np.round(reg_control.rsquared, decimals = 3)
+    coefs_control     = np.round(reg_control.params*100, decimals = 4)   #Multiply net gamma coef by 100 to get bps format
+    tvals_control     = np.round(reg_control.tvalues, decimals = 4)
+    pvals_control     = np.round(reg_control.pvalues, decimals = 4)
+    r_squared_control = np.round(reg_control.rsquared, decimals = 4)
         
     ### Alternative Result Print
-    legend_control = np.array(['$netGamma_{t-' + str(lag) + '}$', " ", '$IVOL_{t-1}$', " ", '$IVOL_{t-2}$', " ", '$IVOL_{t-3}$', " ", \
+    legend_control = np.array(['$\Gamma^{MM}_{t-' + str(lag) + '}$', " ", '$IVOL_{t-1}$', " ", '$IVOL_{t-2}$', " ", '$IVOL_{t-3}$', " ", \
                        '$|R_{t-1}|$', " ", '$|R_{t-2}|$', " ", '$|R_{t-3}|$', " ",  'Intercept', " ", '$R^2$' ])
         
     sign_test_control = []
@@ -294,7 +295,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
                                  str(coefs_control[5]) + sign_test_control[5], "(" + str(tvals_control[5]) + ")", \
                                  str(coefs_control[6]) + sign_test_control[6], "(" + str(tvals_control[6]) + ")", \
                                  str(coefs_control[7]) + sign_test_control[7], "(" + str(tvals_control[7]) + ")", \
-                                 str(coefs_control[0]) + sign_test_control[0], "(" + str(tvals_control[0]) + ")", r_squared])        
+                                 str(coefs_control[0]) + sign_test_control[0], "(" + str(tvals_control[0]) + ")", r_squared_control])        
         
         
     results_controlDf = pd.DataFrame()
@@ -319,14 +320,14 @@ for j in np.arange(0, len(UnderlyingTicker)):
     X_liq  = sm.add_constant(X_liq*1)
     X_liq  = X_liq[0:-lag]
     
-    reg_liq       = sm.OLS(y_liq, X_liq).fit()
+    reg_liq       = sm.OLS(y_liq, X_liq).fit(cov_type = "HAC", cov_kwds= {'maxlags':1})
     coefs_liq     = np.round(reg_liq.params*100, decimals = 3)   #Multiply net gamma coef by 100 to get bps format
     tvals_liq     = np.round(reg_liq.tvalues, decimals = 3)
     pvals_liq     = np.round(reg_liq.pvalues, decimals = 3)
     r_squared_liq = np.round(reg_liq.rsquared, decimals = 3)
     
     ### Alternative Result Print
-    legend_liq = np.array(['Negative $netGamma$', " ", 'Low Liquidity', " ", 'Negative $netGamma \times $ Low Liquidity', " ",  'Intercept', " ", '$R^2$' ])
+    legend_liq = np.array(['Negative $\Gamma^{MM}$', " ", 'Low Liquidity', " ", 'Negative $netGamma \times $ Low Liquidity', " ",  'Intercept', " ", '$R^2$' ])
         
     sign_test_liq = []
     for pval in pvals_liq:
@@ -342,7 +343,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
     results_liq = np.array([ str(coefs_liq[1]) + sign_test_liq[1], "(" + str(tvals_liq[1]) + ")", \
                              str(coefs_liq[2]) + sign_test_liq[2], "(" + str(tvals_liq[2]) + ")", \
                              str(coefs_liq[3]) + sign_test_liq[3], "(" + str(tvals_liq[3]) + ")", \
-                             str(coefs_liq[0]) + sign_test_liq[0], "(" + str(tvals_liq[0]) + ")", r_squared])        
+                             str(coefs_liq[0]) + sign_test_liq[0], "(" + str(tvals_liq[0]) + ")", r_squared_liq])        
     #Store in DataFrame      
     results_liqDf = pd.DataFrame()
     if j == 0:

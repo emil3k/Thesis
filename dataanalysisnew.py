@@ -25,6 +25,8 @@ UnderlyingTicker      = "SPX"
 UnderlyingETFName     = "SPY US Equity"
 UnderlyingETFTicker   = "SPY"
 
+futuresOpenInterest = 1567846
+
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
 prefColor             = '#0504aa'
 load_etf = True
@@ -103,6 +105,14 @@ netGammaETF   = ETFData["netGamma"].to_numpy()
 marketCapIndex   = indexData["Market Cap"].to_numpy()
 marketCapETF     = ETFData["Market Cap"].to_numpy()
 
+#Put and call gamma
+putGammaIndex  = indexData["gamma_put"].to_numpy() / marketCapIndex
+callGammaIndex = indexData["gamma_call"].to_numpy() / marketCapIndex
+putGammaETF    = ETFData["gamma_put"].to_numpy() / marketCapIndex[-len(marketCapETF):]
+callGammaETF   = ETFData["gamma_call"].to_numpy() / marketCapIndex[-len(marketCapETF):]
+
+
+
 
 if UnderlyingETFTicker == "IWM": #replace min value of IWM Market Cap
     isMinVal = (marketCapETF == np.min(marketCapETF))
@@ -112,11 +122,19 @@ if UnderlyingETFTicker == "IWM": #replace min value of IWM Market Cap
 
 #Compute Scaled Gamma 
 netGammaIndex_scaled = netGammaIndex / marketCapIndex
-netGammaETF_scaled   = netGammaETF / marketCapETF
+#netGammaETF_scaled   = netGammaETF / marketCapETF
+netGammaETF_scaled   = netGammaETF / marketCapIndex[-len(netGammaETF):]
 
 #Compute normalized gamma
 netGammaIndex_scaledNorm = (netGammaIndex_scaled - np.mean(netGammaIndex_scaled)) / np.std(netGammaIndex_scaled)
 netGammaETF_scaledNorm = (netGammaETF_scaled - np.mean(netGammaETF_scaled)) / np.std(netGammaETF_scaled)
+
+#Compute aggregate measure of gamma
+netGammaETFLong = np.zeros((len(netGammaIndex),))
+netGammaETFLong[-len(netGammaETF):] = netGammaETF
+aggregateNetGamma = (netGammaIndex + netGammaETFLong) / marketCapIndex #Aggregate measure
+
+
 
 ##############################################################
 ########### #Investigate proporties of gamma ################
@@ -165,8 +183,8 @@ plt.show()
 ###############################################################
 ########### Time Series analysis ##############################
 #Collect gamma measures to smooth
-dataToSmoothIndex  = np.concatenate((netGammaIndex.reshape(-1, 1), netGammaIndex_scaled.reshape(-1, 1), netGammaIndex_scaledNorm.reshape(-1, 1)), axis = 1)
-dataToSmoothETF    = np.concatenate((netGammaETF.reshape(-1, 1), netGammaETF_scaled.reshape(-1, 1), netGammaETF_scaledNorm.reshape(-1, 1)), axis = 1)
+dataToSmoothIndex  = np.concatenate((netGammaIndex.reshape(-1, 1), netGammaIndex_scaled.reshape(-1, 1), netGammaIndex_scaledNorm.reshape(-1, 1), putGammaIndex.reshape(-1,1), callGammaIndex.reshape(-1,1)), axis = 1)
+dataToSmoothETF    = np.concatenate((netGammaETF.reshape(-1, 1), netGammaETF_scaled.reshape(-1, 1), netGammaETF_scaledNorm.reshape(-1, 1), putGammaETF.reshape(-1,1), callGammaETF.reshape(-1,1)), axis = 1)
 
 lookback = 100
 [smoothGammaIndex, smoothDatesIndex] = gf.smoothData(dataToSmoothIndex, indexDates, lookback, dates4figIndex)
@@ -175,7 +193,7 @@ lookback = 100
 #Construct vector of ETF smoothed gamma of equal size as Index  
 netGammaETFLong = np.zeros((len(smoothGammaIndex), 3))
 netGammaETFLong[0:, :] = np.nan    
-netGammaETFLong[-len(smoothGammaETF):, :] = smoothGammaETF   
+netGammaETFLong[-len(smoothGammaETF):, :] = smoothGammaETF[:, 0:3]   
 
 #Compute Correlation
 GammaCorr = np.corrcoef(netGammaIndex_scaled[-len(netGammaETF_scaled):], netGammaETF_scaled)[0, 1]
@@ -204,15 +222,17 @@ plt.show()
 
 #Scaled Gamma Subplot
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize = (10, 3))
-fig.suptitle('Net Gamma Exposure Over Time')
-ax1.plot(dates4figIndex, netGammaIndex, color = '#0504aa', alpha = 0.8, label = UnderlyingTicker)
-ax2.plot(dates4figETF, netGammaETF, color = "red", alpha = 0.8, label = UnderlyingETFTicker)
+if UnderlyingTicker == "SPX":
+    fig.suptitle('Net Gamma Exposure Over Time')
+ax1.plot(dates4figIndex, netGammaIndex_scaled, color = '#0504aa', alpha = 0.8, label = UnderlyingTicker)
+ax2.plot(dates4figETF, netGammaETF_scaled, color = "red", alpha = 0.8, label = UnderlyingETFTicker)
+ax1.set_ylabel("Market Maker Net Gamma")
 fig.legend()
 
 
 #Smoothed Gamma Index      
 plt.figure()
-plt.plot(smoothDatesIndex, smoothGammaIndex[:, 1], color = '#0504aa')
+plt.plot(smoothDatesIndex, smoothGammaIndex[:, 1], color = '#0504aa') 
 plt.title("100 DMA Net Gamma Exposure for " + UnderlyingETFTicker)
 plt.ylabel(r'$netGamma_t%.5f$')
 plt.legend()
@@ -231,9 +251,36 @@ plt.figure()
 plt.plot(smoothDatesIndex, smoothGammaIndex[:, 2], color = '#0504aa', label = UnderlyingTicker)
 plt.plot(smoothDatesIndex, netGammaETFLong[:, 2], color = "red", alpha = 0.8, label = UnderlyingETFTicker)
 plt.title("Net Gamma Exposure (100 DMA, Standardized)")
-plt.ylabel(r'$netGamma_t%.5f$' + " (Standardized)")
+plt.ylabel("MM Net Gamma Exposure (Standardized)")
 plt.legend()
 plt.show()
+
+
+#Put and Call Gamma
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize = (10, 3))
+fig.suptitle('Put and Call Gamma Exposure Over Time')
+ax1.plot(dates4figIndex, putGammaIndex,  color = '#0504aa', alpha = 0.8, label = "put " + UnderlyingTicker)
+ax1.plot(dates4figIndex, callGammaIndex, color = 'silver',  alpha = 0.8, label = "call " + UnderlyingTicker)
+ax2.plot(dates4figETF, putGammaETF,      color = "red",     alpha = 0.8, label = "put " + UnderlyingETFTicker)
+ax2.plot(dates4figETF, callGammaETF,     color = "silver",  alpha = 0.8, label = "call " + UnderlyingETFTicker)
+fig.legend()
+
+
+#Put and Call Gamma
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize = (10, 3))
+if UnderlyingTicker == "SPX":
+    fig.suptitle('Put and Call Gamma Exposure Over Time (100 DMA)', y = 0.98)
+ax1.plot(smoothDatesIndex, smoothGammaIndex[:, -2], color = '#0504aa', alpha = 0.8, label = "put " + UnderlyingTicker)
+ax1.plot(smoothDatesIndex, smoothGammaIndex[:, -1], color = 'silver',  alpha = 0.8, label = "call " + UnderlyingTicker)
+ax1.set_ylabel("Aggregate Gamma")
+#ax1.set_title(UnderlyingTicker)
+ax1.legend()
+ax2.plot(smoothDatesETF,   smoothGammaETF[:, -2],   color = "red",     alpha = 0.8, label = "put " + UnderlyingETFTicker)
+ax2.plot(smoothDatesETF,   smoothGammaETF[:, -1],   color = "silver",  alpha = 0.8, label = "call " + UnderlyingETFTicker)
+#ax2.set_title(UnderlyingETFTicker)
+ax2.legend()
+#fig.legend()
+
 
 
 ###### Scatter plot ##############
@@ -292,15 +339,43 @@ volumeETFLong      = np.zeros((len(volumeIndex),))
 volumeETFLong[0:]  = np.nan
 volumeETFLong[-len(volumeETF):] = volumeETF
 
+volumeETFLong2      = np.zeros((len(volumeIndex),))
+volumeETFLong2[-len(volumeETF):] = volumeETF
+
+
 deltaAdjVolumeETFLong      = np.zeros((len(deltaAdjVolumeIndex), ))
 deltaAdjVolumeETFLong[0:]  = np.nan
 deltaAdjVolumeETFLong[-len(deltaAdjVolumeETF):] = deltaAdjVolumeETF
+
+#Compute total delta adjusted option volume
+deltaAdjVolumeETFLong2      = np.zeros((len(deltaAdjVolumeIndex), ))
+deltaAdjVolumeETFLong2[-len(deltaAdjVolumeETF):] = deltaAdjVolumeETF
+totalDeltaAdjOptionVolume   = deltaAdjVolumeETFLong2/10 + deltaAdjVolumeIndex
+
+
+openInterestETFLong      = np.zeros((len(openInterestIndex),))
+openInterestETFLong[0:]  = np.nan
+openInterestETFLong[-len(openInterestETF):] = openInterestETF / ETFMultiplier
+
+deltaAdjOpenInterestETFLong      = np.zeros((len(openInterestIndex),))
+deltaAdjOpenInterestETFLong[0:]  = np.nan
+deltaAdjOpenInterestETFLong[-len(deltaAdjOpenInterestETF):] = deltaAdjOpenInterestETF / ETFMultiplier
+
 
 #Smooth data for nicer plots
 volumeDataToSmooth = np.concatenate((volumeIndex.reshape(-1,1), volumeETFLong.reshape(-1,1), deltaAdjVolumeIndex.reshape(-1,1), deltaAdjVolumeETFLong.reshape(-1,1)), axis  = 1)
 [smoothVolumeData, smoothVolumeDates] = gf.smoothData(volumeDataToSmooth, dates4figIndex, lookback = 100)
 
+openInterestDataToSmooth = np.concatenate((openInterestIndex.reshape(-1,1), openInterestETFLong.reshape(-1,1), deltaAdjOpenInterestIndex.reshape(-1,1), deltaAdjOpenInterestETFLong.reshape(-1,1)), axis = 1)
+[smoothOpenInterestData, smoothOpenInterestDates] = gf.smoothData(openInterestDataToSmooth, dates4figIndex, lookback = 100)
 
+futuresOpenInterestVec = np.zeros((len(openInterestIndex), ))
+futuresOpenInterestVec[0:] = np.nan
+futuresOpenInterestVec[-1] = futuresOpenInterest
+
+
+
+### Volume Plots ####
 #Plot Volume Options
 plt.figure()
 plt.plot(dates4figIndex, deltaAdjVolumeIndex, color = prefColor, alpha = 0.8, label = UnderlyingTicker)
@@ -311,8 +386,8 @@ plt.legend()
 
 #Plot Volume Underlying
 plt.figure()
-plt.plot(dates4figIndex, volumeIndex, color = prefColor, alpha = 0.8, label = UnderlyingTicker)
-plt.plot(dates4figIndex, volumeETFLong / ETFMultiplier, color = "red", alpha = 0.8, label = UnderlyingETFTicker)
+plt.plot(dates4figIndex, np.log(volumeIndex), color = prefColor, alpha = 0.8, label = UnderlyingTicker)
+plt.plot(dates4figIndex, np.log(volumeETFLong / ETFMultiplier), color = "red", alpha = 0.8, label = UnderlyingETFTicker)
 plt.title("Underlying Volume")
 plt.ylabel("Volume, (" + UnderlyingTicker + " Equivalent Shares)")
 plt.legend()
@@ -325,8 +400,48 @@ plt.title("Delta Adjusted Volume (100 DMA)")
 plt.ylabel("Volume, (" + UnderlyingTicker + " Equivalent Shares)")
 plt.legend()
 
+#Plot Volume Underlying
+plt.figure()
+plt.plot(dates4figIndex, np.log(totalDeltaAdjOptionVolume), color = prefColor, alpha = 0.8, label = "Option Volume")
+plt.plot(dates4figIndex, np.log(volumeIndex + volumeETFLong2/10), color = "red", alpha = 0.8, label = "Index Volume")
+plt.title("Total Underlying vs. Delta Adjusted Option Volume")
+plt.ylabel("Volume Log " + UnderlyingTicker + " Equivalent Shares")
+plt.legend()
 
 
+### Open Interest Plots ###
+
+#Smoothed open interest
+plt.figure()
+plt.plot(smoothOpenInterestDates, smoothOpenInterestData[:, 0] / 1000000, color = prefColor, alpha = 0.8, label = UnderlyingTicker)
+plt.plot(smoothOpenInterestDates, smoothOpenInterestData[:, 1] / 1000000, color = "red", alpha = 0.8, label = UnderlyingETFTicker)
+plt.plot(smoothOpenInterestDates, futuresOpenInterestVec/1000000, color = "k", alpha = 0.8, label = UnderlyingETFTicker)
+plt.title("Open Interest (100DMA)")
+plt.ylabel("Open Interest in Million " + UnderlyingTicker + " Contracts")
+plt.legend()
+
+#Smoothed delta adjusted open interest
+plt.figure()
+plt.plot(smoothOpenInterestDates, smoothOpenInterestData[:, 2], color = prefColor, alpha = 0.8, label = UnderlyingTicker)
+plt.plot(smoothOpenInterestDates, smoothOpenInterestData[:, 3], color = "red", alpha = 0.8, label = UnderlyingETFTicker)
+plt.title("Delta Adjusted Open Interest (100 DMA)")
+plt.ylabel("Open Interest in " + UnderlyingTicker + " Equivalent Shares)")
+plt.legend()
+
+
+#Not smoothed
+plt.figure()
+plt.plot(dates4figIndex, np.log(openInterestIndex), color = prefColor, alpha = 0.8, label = UnderlyingTicker)
+plt.plot(dates4figIndex, np.log(openInterestETFLong), color = "red", alpha = 0.8, label = UnderlyingETFTicker)
+plt.scatter(dates4figIndex, np.log(futuresOpenInterestVec), color = "k", alpha = 1, label = "Futures Options")
+plt.title("Aggregate Open Interest")
+plt.ylabel("Open Interst in Log " + UnderlyingTicker + " Index Equivalent Units")
+plt.legend()
+
+
+
+
+sys.exit()
 
 #smoothCols = np.array(["aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
 #                        "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingTicker + " Volume",\
@@ -403,17 +518,6 @@ r1 = np.arange(len(CondReversalBarsIndex))
 r2 = [x + barWidth for x in r1]
 r3 = [x + barWidth for x in r2]
 
-#Bar Plot Index
-plt.figure()
-plt.bar(r1, CondReversalBarsIndex*100,   width = barWidth, color = "midnightblue", alpha = 0.8, label = "Conditional on gamma and return")  
-plt.bar(r2, UncondReversalBarsIndex*100, width = barWidth, color = "lightblue", alpha = 0.8,  label = "Conditional on return")
-plt.bar(r3, MeanReturnBarsIndex*100,     width = barWidth, color = "silver",  alpha = 0.8, label = "Unconditonal")
-plt.title("Avg. Returns By Prev. Day Gamma and Return, " + UnderlyingTicker)
-plt.xlabel("Previous Day Net Gamma and Return Combinations" + " (" + periodLabelIndex + ")")
-plt.ylabel("Average Daily Excess Return (%)")
-plt.xticks(r1 + barWidth/2, ticks)
-plt.legend()
-plt.show()
 
 #Bar Plot Index alternative color
 plt.figure()
@@ -428,15 +532,30 @@ plt.legend()
 plt.show()
 
 
-#Bar Plot ETF
+#Bar Plot Index
 plt.figure()
-plt.bar(r1, CondReversalBarsETF*100,   width = barWidth, color = prefColor, alpha = 0.8, label = "Conditional on gamma and return")  
-plt.bar(r2, UncondReversalBarsETF*100, width = barWidth, color = "red", alpha = 0.8,  label = "Conditional on return")
-plt.bar(r3, MeanReturnBarsETF*100,     width = barWidth, color = "silver",  alpha = 0.8, label = "Unconditonal")
+plt.bar(r1, (CondReversalBarsIndex - MeanReturnBarsIndex)*100,   width = barWidth, color = prefColor, alpha = 0.8, label = "Cond. on gamma and return")  
+plt.bar(r2, (UncondReversalBarsIndex - MeanReturnBarsIndex)*100, width = barWidth, color = "red", alpha = 0.8,  label = "Cond. on return")
+#plt.bar(r3, MeanReturnBarsIndex*100,     width = barWidth, color = "silver",  alpha = 0.8, label = "Unconditonal")
 plt.title("Avg. Returns By Prev. Day Gamma and Return, " + UnderlyingTicker)
 plt.xlabel("Previous Day Net Gamma and Return Combinations" + " (" + periodLabelIndex + ")")
-plt.ylabel("Average Daily Excess Return (%)")
+plt.ylabel("Avg. Cond. Return minus Sample Average (%)")
 plt.xticks(r1 + barWidth/2, ticks)
+plt.axhline(y=0, color='k', linestyle='-', linewidth = 1)
+plt.legend()
+plt.show()
+
+
+#Bar Plot ETF
+plt.figure()
+plt.bar(r1, (CondReversalBarsETF - MeanReturnBarsETF)*100,   width = barWidth, color = prefColor, alpha = 0.8, label = "Cond. on gamma and return")  
+plt.bar(r2, (UncondReversalBarsETF - MeanReturnBarsETF) *100, width = barWidth, color = "red", alpha = 0.8,  label = "Cond. on return")
+#plt.bar(r3, MeanReturnBarsETF*100,     width = barWidth, color = "silver",  alpha = 0.8, label = "Unconditonal")
+plt.title("Avg. Returns By Prev. Day Gamma and Return, " + UnderlyingETFTicker)
+plt.xlabel("Previous Day Net Gamma and Return Combinations" + " (" + periodLabelIndex + ")")
+plt.ylabel("Avg. Cond. Return minus Sample Average (%)")
+plt.xticks(r1 + barWidth/2, ticks)
+plt.axhline(y=0, color='k', linestyle='-', linewidth = 1)
 plt.legend()
 plt.show()
 
