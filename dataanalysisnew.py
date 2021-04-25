@@ -25,7 +25,7 @@ UnderlyingTicker      = "SPX"
 UnderlyingETFName     = "SPY US Equity"
 UnderlyingETFTicker   = "SPY"
 
-futuresOpenInterest = 1567846
+futuresOpenInterest = 2749010
 
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
 prefColor             = '#0504aa'
@@ -97,9 +97,17 @@ ETFReturns   = np.concatenate((np.zeros((1,)), ETFReturns), axis = 0) #add zero 
 ETFXsReturns = ETFReturns - RfDaily[-len(ETFReturns):]
 
 
+#ETF Multiplier
+if UnderlyingTicker == "NDX":
+    ETFMultiplier = 40
+else:
+    ETFMultiplier = 10
+    
+
+
 #Extract net gamma
 netGammaIndex = indexData["netGamma"].to_numpy()
-netGammaETF   = ETFData["netGamma"].to_numpy()
+netGammaETF   = ETFData["netGamma"].to_numpy()/(ETFMultiplier**2)
 
 #Extract market cap
 marketCapIndex   = indexData["Market Cap"].to_numpy()
@@ -108,8 +116,9 @@ marketCapETF     = ETFData["Market Cap"].to_numpy()
 #Put and call gamma
 putGammaIndex  = indexData["gamma_put"].to_numpy() / marketCapIndex
 callGammaIndex = indexData["gamma_call"].to_numpy() / marketCapIndex
-putGammaETF    = ETFData["gamma_put"].to_numpy() / marketCapIndex[-len(marketCapETF):]
-callGammaETF   = ETFData["gamma_call"].to_numpy() / marketCapIndex[-len(marketCapETF):]
+putGammaETF    = ETFData["gamma_put"].to_numpy() / ((ETFMultiplier**2)*marketCapIndex[-len(marketCapETF):])
+callGammaETF   = ETFData["gamma_call"].to_numpy() / ((ETFMultiplier**2)*marketCapIndex[-len(marketCapETF):])
+
 
 
 
@@ -130,7 +139,7 @@ netGammaIndex_scaledNorm = (netGammaIndex_scaled - np.mean(netGammaIndex_scaled)
 netGammaETF_scaledNorm = (netGammaETF_scaled - np.mean(netGammaETF_scaled)) / np.std(netGammaETF_scaled)
 
 #Compute aggregate measure of gamma
-netGammaETFLong = np.zeros((len(netGammaIndex),))
+netGammaETFLong   = np.zeros((len(netGammaIndex),))
 netGammaETFLong[-len(netGammaETF):] = netGammaETF
 aggregateNetGamma = (netGammaIndex + netGammaETFLong) / marketCapIndex #Aggregate measure
 
@@ -161,8 +170,10 @@ nLags    = 20
 corrVecIndex = np.zeros((nLags, ))
 corrVecETF   = np.zeros((nLags, ))
 
+netGammaIndex_scaledTr = netGammaIndex_scaled[-len(netGammaETF_scaled):]
+
 for i in np.arange(1, nLags):
-    corrVecIndex[i] = np.corrcoef(netGammaIndex_scaled[0:-i], netGammaIndex_scaled[i:])[0,1]
+    corrVecIndex[i] = np.corrcoef(netGammaIndex_scaledTr[0:-i], netGammaIndex_scaledTr[i:])[0,1]
     corrVecETF[i]   = np.corrcoef(netGammaETF_scaled[0:-i], netGammaETF_scaled[i:])[0,1]
 
 #Autocorrelation plots
@@ -171,7 +182,7 @@ width = 0.4
 plt.figure()
 plt.bar(x + width/2, corrVecIndex[1:], width = width, color = '#0504aa', label = UnderlyingTicker)  
 plt.bar(x - width/2, corrVecETF[1:], width = width, color = "red", alpha = 0.8, label = UnderlyingETFTicker)
-plt.title("Autocorrelation for different lags")
+plt.title("Autocorrelation for different lags " + "(" + periodLabelETF + ")")
 plt.xlabel("Lags in days")
 plt.xticks(x, x, rotation='horizontal')
 plt.ylabel("Autocorrelation coefficient")
@@ -251,7 +262,7 @@ plt.figure()
 plt.plot(smoothDatesIndex, smoothGammaIndex[:, 2], color = '#0504aa', label = UnderlyingTicker)
 plt.plot(smoothDatesIndex, netGammaETFLong[:, 2], color = "red", alpha = 0.8, label = UnderlyingETFTicker)
 plt.title("Net Gamma Exposure (100 DMA, Standardized)")
-plt.ylabel("MM Net Gamma Exposure (Standardized)")
+#plt.ylabel("MM Net Gamma Exposure (Standardized)")
 plt.legend()
 plt.show()
 
@@ -332,7 +343,7 @@ dollarVolumeETF          = ETFData[UnderlyingETFTicker + " Dollar Volume"].to_nu
 
 
 #Combine volume data for index and etf
-ETFMultiplier      = 10
+
 
 #Match size
 volumeETFLong      = np.zeros((len(volumeIndex),))
@@ -350,12 +361,13 @@ deltaAdjVolumeETFLong[-len(deltaAdjVolumeETF):] = deltaAdjVolumeETF
 #Compute total delta adjusted option volume
 deltaAdjVolumeETFLong2      = np.zeros((len(deltaAdjVolumeIndex), ))
 deltaAdjVolumeETFLong2[-len(deltaAdjVolumeETF):] = deltaAdjVolumeETF
-totalDeltaAdjOptionVolume   = deltaAdjVolumeETFLong2/10 + deltaAdjVolumeIndex
+totalDeltaAdjOptionVolume   = deltaAdjVolumeETFLong2/ETFMultiplier + deltaAdjVolumeIndex
 
 
 openInterestETFLong      = np.zeros((len(openInterestIndex),))
 openInterestETFLong[0:]  = np.nan
 openInterestETFLong[-len(openInterestETF):] = openInterestETF / ETFMultiplier
+openInterestETFShort = openInterestETF / ETFMultiplier
 
 deltaAdjOpenInterestETFLong      = np.zeros((len(openInterestIndex),))
 deltaAdjOpenInterestETFLong[0:]  = np.nan
@@ -403,9 +415,9 @@ plt.legend()
 #Plot Volume Underlying
 plt.figure()
 plt.plot(dates4figIndex, np.log(totalDeltaAdjOptionVolume), color = prefColor, alpha = 0.8, label = "Option Volume")
-plt.plot(dates4figIndex, np.log(volumeIndex + volumeETFLong2/10), color = "red", alpha = 0.8, label = "Index Volume")
-plt.title("Total Underlying vs. Delta Adjusted Option Volume")
-plt.ylabel("Volume Log " + UnderlyingTicker + " Equivalent Shares")
+plt.plot(dates4figIndex, np.log(volumeIndex + volumeETFLong2/ETFMultiplier), color = "red", alpha = 0.8, label = "Index Volume")
+plt.title("Underlying vs. Delta Adj. Option Volume, Russell 2000")
+plt.ylabel("Volume Log Index Equivalent Units")
 plt.legend()
 
 
@@ -415,7 +427,7 @@ plt.legend()
 plt.figure()
 plt.plot(smoothOpenInterestDates, smoothOpenInterestData[:, 0] / 1000000, color = prefColor, alpha = 0.8, label = UnderlyingTicker)
 plt.plot(smoothOpenInterestDates, smoothOpenInterestData[:, 1] / 1000000, color = "red", alpha = 0.8, label = UnderlyingETFTicker)
-plt.plot(smoothOpenInterestDates, futuresOpenInterestVec/1000000, color = "k", alpha = 0.8, label = UnderlyingETFTicker)
+plt.plot(smoothOpenInterestDates, futuresOpenInterestVec[100:]/1000000, color = "k", alpha = 0.8, label = UnderlyingETFTicker)
 plt.title("Open Interest (100DMA)")
 plt.ylabel("Open Interest in Million " + UnderlyingTicker + " Contracts")
 plt.legend()
@@ -431,12 +443,20 @@ plt.legend()
 
 #Not smoothed
 plt.figure()
-plt.plot(dates4figIndex, np.log(openInterestIndex), color = prefColor, alpha = 0.8, label = UnderlyingTicker)
-plt.plot(dates4figIndex, np.log(openInterestETFLong), color = "red", alpha = 0.8, label = UnderlyingETFTicker)
-plt.scatter(dates4figIndex, np.log(futuresOpenInterestVec), color = "k", alpha = 1, label = "Futures Options")
-plt.title("Aggregate Open Interest")
-plt.ylabel("Open Interst in Log " + UnderlyingTicker + " Index Equivalent Units")
+plt.plot(dates4figIndex, np.log(openInterestIndex), color = prefColor, alpha = 0.8, label = UnderlyingTicker + " Options")
+plt.plot(dates4figIndex, np.log(openInterestETFLong), color = "red", alpha = 0.8, label = UnderlyingETFTicker + " Options")
+#plt.scatter(dates4figIndex, np.log(futuresOpenInterestVec), color = "k", alpha = 1, label = "Futures Options")
+plt.title("Aggregate Open Interest S&P 500 Instruments")
+plt.ylabel("Open Interst in Log Index Equivalent Units")
 plt.legend()
+
+plt.figure()
+plt.plot(dates4figETF, openInterestIndex[-len(openInterestETFShort):] / openInterestETFShort , color = prefColor, alpha = 0.8, label = UnderlyingTicker + " Options")
+#plt.plot(dates4figIndex, np.log(openInterestETFLong), color = "red", alpha = 0.8, label = UnderlyingETFTicker + " Options")
+#plt.scatter(dates4figIndex, np.log(futuresOpenInterestVec), color = "k", alpha = 1, label = "Futures Options")
+plt.title("Open Interest " + UnderlyingTicker + "/" + UnderlyingETFTicker)
+plt.ylabel("Open Interst Ratio Index Equivalent Units")
+#plt.legend()
 
 
 
