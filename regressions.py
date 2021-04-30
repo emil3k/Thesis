@@ -18,6 +18,11 @@ from sklearn.linear_model import LassoCV
 ### SET IMPORT PARAMS ####################################################################
 UnderlyingAssetName   = ["SPX Index", "SPY US Equity", "NDX Index", "QQQ US Equity", "RUT Index", "IWM US Equity", "VIX Index"]
 UnderlyingTicker      = ["SPX", "SPY", "NDX", "QQQ", "RUT", "IWM", "VIX"]
+
+IndexTicker = ["SPX", "NDX", "RUT"]
+ETFTicker   = ["SPY", "QQQ", "IWM"]
+
+
 IsEquityIndex        = [True, False, True, False, True, False, False]
 #UnderlyingAssetName   = ["SPX US Equity"]
 #UnderlyingTicker      = ["SPX"]
@@ -117,21 +122,32 @@ def plotResiduals(residuals, lag = None, ticker = None, color = '#0504aa', histt
 lag     = 1
 hist    = False
 scatter = False
-
+ETFMultiplierList = np.array([10,40,10])
 for j in np.arange(0, len(UnderlyingTicker)):
     ticker   = UnderlyingTicker[j]
     name     = UnderlyingAssetName[j]
     data     = AggregateData[j]
     xsret    = XsReturns[j]
+    isETF    = np.in1d(ETFTicker, ticker)
+    
+    if np.sum(isETF) == 1: #if ticker is an ETF
+       ETFMultiplier  = ETFMultiplierList[isETF]   
+       indexData      = AggregateData[j-1] #grab corresponding Index data
+       marketCap      = indexData["Market Cap"].to_numpy()
+       marketCap      = marketCap[-len(data):]
+       marketCap      = (ETFMultiplier**2)*marketCap
+    else:
+       marketCap      = data["Market Cap"].to_numpy()
+    
     
     #Compute Independent Variable Time Series
     #Grab necessary data
     netGamma       = data["netGamma"].to_numpy()
-    marketCap      = data["Market Cap"].to_numpy()
     MAdollarVolume = data["MADollarVolume"].to_numpy() 
     ILLIQ          = data["ILLIQ"].to_numpy()
     ILLIQMedian    = np.median(ILLIQ)    
     ILLIQMean      = np.mean(ILLIQ)  
+    IVOL           = data["IVOL"].to_numpy()*100
     #plt.plot(ILLIQ)
     #plt.plot(np.ones((len(ILLIQ),))*ILLIQMedian, "--r")
     #plt.plot(np.ones((len(ILLIQ),))*ILLIQMean, "--b")
@@ -146,7 +162,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
     else:
         netGamma_scaled = netGamma / MAdollarVolume
         
-    IVOL            = data["IVOL"].to_numpy()
+  
    
     #Standardize meaesure
     #netGamma_scaled = (netGamma_scaled - np.mean(netGamma_scaled)) / np.std(netGamma_scaled)
@@ -214,7 +230,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
     X      = X[0:-lag, :]       #Lag matrix accordingly 
     X      = sm.add_constant(X) #add constant
 
-    reg       = sm.OLS(y, X).fit(cov_type = "HAC", cov_kwds = {'maxlags':1})
+    reg       = sm.OLS(y, X).fit(cov_type = "HAC", cov_kwds = {'maxlags':0})
     coefs     = np.round(reg.params*100, decimals = 4) #Multiply coefs by 100 to get in bps format
     tvals     = np.round(reg.tvalues, decimals = 4)
     pvals     = np.round(reg.pvalues, decimals = 4)
@@ -266,7 +282,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
     X_control = X_control[0:-lag, :]       #Lag matrix accordingly 
     X_control = sm.add_constant(X_control) #add constant
 
-    reg_control       = sm.OLS(y_control, X_control).fit(cov_type = "HAC", cov_kwds = {'maxlags':1})
+    reg_control       = sm.OLS(y_control, X_control).fit(cov_type = "HAC", cov_kwds = {'maxlags':0})
     #netGamma_coef     = np.roun(reg_control.params[1]*100, decimals = 3) 
     coefs_control     = np.round(reg_control.params*100, decimals = 4)   #Multiply net gamma coef by 100 to get bps format
     tvals_control     = np.round(reg_control.tvalues, decimals = 4)
