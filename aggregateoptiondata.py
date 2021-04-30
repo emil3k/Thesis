@@ -13,8 +13,9 @@ import sys
 ## Aggregate Option Data to daily series
 
 ### SET WHICH ASSET TO BE IMPORTED #######################################################
-UnderlyingAssetName   = "VIX Index"
-UnderlyingTicker      = "VIX"
+UnderlyingAssetName   = "IWM US Equity"
+UnderlyingTicker      = "IWM"
+VolIndexTicker        = "RVX Index"
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/CleanData/"
 equity_index          = False
 ##########################################################################################
@@ -22,6 +23,7 @@ equity_index          = False
 #Load data
 OptionData        = pd.read_csv(loadloc + UnderlyingTicker + "OptionDataClean.csv")
 UnderlyingData    = pd.read_csv(loadloc + UnderlyingTicker + "UnderlyingData.csv")
+
 
 #Risk free rate
 Rf           = pd.read_excel("C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/SpotData/SpotData.xlsx", sheet_name = "Rf")
@@ -58,21 +60,34 @@ RfDaily[1:] = Rf[0:-1] * daycount[1:]/360
 
 #VIX Futures
 if UnderlyingTicker == "VIX":
-    futPrices  = pd.read_excel(r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\FuturesData\VIXFuturesData.xlsx', sheet_name = "Prices")
-    futVolume  = pd.read_excel(r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\FuturesData\VIXFuturesData.xlsx', sheet_name = "Volume")
+    futPrices         = pd.read_excel(r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\FuturesData\VIXFuturesData.xlsx', sheet_name = "Prices")
+    futVolume         = pd.read_excel(r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\FuturesData\VIXFuturesData.xlsx', sheet_name = "Volume")
+    futOpenInterest   = pd.read_excel(r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\FuturesData\VIXFuturesData.xlsx', sheet_name = "Open Interest")
+    futPricesUnrolled = pd.read_excel(r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\FuturesData\VIXFuturesDataUnrolled.xlsx', sheet_name = "Prices")
+    
     futDates   = futPrices["Dates"]
     futDates   = pd.to_datetime(futDates, '%Y-%m-%d')
     futDates   = bt.yyyymmdd(futDates)
     
-    futPrices    = bt.trimToDates(futPrices, futDates, startDate, endDate)
-    futVolume    = bt.trimToDates(futVolume, futDates, startDate, endDate)
+    futDatesUnrolled   = futPricesUnrolled["Dates"]
+    futDatesUnrolled   = pd.to_datetime(futDatesUnrolled, '%Y-%m-%d')
+    futDatesUnrolled   = bt.yyyymmdd(futDatesUnrolled)
+    
+    
+    futPrices         = bt.trimToDates(futPrices, futDates, startDate, endDate)
+    futVolume         = bt.trimToDates(futVolume, futDates, startDate, endDate)
+    futOpenInterest   = bt.trimToDates(futOpenInterest.iloc[:, 0:5], futDates, startDate, endDate)
+    futPricesUnrolled = bt.trimToDates(futPricesUnrolled.iloc[:, 0:5], futDatesUnrolled, startDate, endDate)    
+    
     
     frontPrices  = futPrices.iloc[:, 1].to_numpy()
     backPrices   = futPrices.iloc[:, 2].to_numpy()
     frontVolume  = futVolume.iloc[:, 1].to_numpy()
     backVolume   = futVolume.iloc[:, 2].to_numpy()
 
-
+    #Market Cap "Estimation" for VIX
+    VIXMarketCap = np.sum((futOpenInterest.iloc[:, 1:].to_numpy()) * (futPricesUnrolled.iloc[:, 1:].to_numpy()), 1)
+    
 
 ################################
 ## Compute and aggregate data ##
@@ -87,8 +102,11 @@ UnderlyingDates     = UnderlyingDataTr["Dates"].to_numpy()
 UnderlyingPrices    = UnderlyingDataTr["Price"].to_numpy()
 UnderlyingVolume    = UnderlyingDataTr["Volume"].to_numpy()
 
+if UnderlyingTicker != "VIX":
+    UnderlyingVolIndex  = UnderlyingDataTr[VolIndexTicker].to_numpy()
+
 if UnderlyingTicker == "VIX":
-    UnderlyingMarketCap = frontVolume + backVolume
+    UnderlyingMarketCap = VIXMarketCap
 else:    
     UnderlyingMarketCap = UnderlyingDataTr["Market Cap"].to_numpy()
 
@@ -105,7 +123,6 @@ if UnderlyingTicker != "VIX": #Backfill market cap unless underlying is VIX
     startVal   = refVal / refCumRet[-1]          #Compute starting point
     fillSeries = startVal * refCumRet[0:-1]      #Create price series
     UnderlyingMarketCap[0:refInd] = fillSeries   #Add filled market cap values
-
 
 
 #MA dollar volume
@@ -244,18 +261,20 @@ UnderlyingDollarVolume  = UnderlyingPrices * UnderlyingVolume
 if equity_index == True:
     UnderlyingData          = np.concatenate((UnderlyingDates.reshape(-1, 1), UnderlyingPrices.reshape(-1, 1),\
                                 UnderlyingVolume.reshape(-1, 1), UnderlyingDollarVolume.reshape(-1, 1),\
-                                (Rf*100).reshape(-1, 1), MAVolume.reshape(-1,1), MADollarVolume.reshape(-1,1), UnderlyingMarketCap.reshape(-1, 1), ILLIQ.reshape(-1,1), UnderlyingTR.reshape(-1,1)), axis = 1) #add price and volume 
+                                (Rf*100).reshape(-1, 1), MAVolume.reshape(-1,1), MADollarVolume.reshape(-1,1), \
+                                UnderlyingMarketCap.reshape(-1, 1), ILLIQ.reshape(-1,1), UnderlyingTR.reshape(-1,1), UnderlyingVolIndex.reshape(-1,1)), axis = 1) #add price and volume 
     cols = np.array(["Dates", UnderlyingTicker, UnderlyingTicker + " Volume", UnderlyingTicker + " Dollar Volume",\
-                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "ILLIQ", "TR Index", "netGamma", "netGamma_alt", "gamma_call", "gamma_put", "aggOpenInterest", "netOpenInterest",\
+                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "ILLIQ", "TR Index", VolIndexTicker, "netGamma", "netGamma_alt", "gamma_call", "gamma_put", "aggOpenInterest", "netOpenInterest",\
                      "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolume", "deltaAdjVolume", "IVOL"])
 
 else:
         UnderlyingData          = np.concatenate((UnderlyingDates.reshape(-1, 1), UnderlyingPrices.reshape(-1, 1),\
                                 UnderlyingVolume.reshape(-1, 1), UnderlyingDollarVolume.reshape(-1, 1),\
-                                (Rf*100).reshape(-1, 1), MAVolume.reshape(-1,1), MADollarVolume.reshape(-1,1), UnderlyingMarketCap.reshape(-1, 1), ILLIQ.reshape(-1,1)), axis = 1)    
+                                (Rf*100).reshape(-1, 1), MAVolume.reshape(-1,1), MADollarVolume.reshape(-1,1), UnderlyingMarketCap.reshape(-1, 1), \
+                                ILLIQ.reshape(-1,1), UnderlyingVolIndex.reshape(-1,1)), axis = 1)    
             
         cols = np.array(["Dates", UnderlyingTicker, UnderlyingTicker + " Volume", UnderlyingTicker + " Dollar Volume",\
-                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "ILLIQ", "netGamma", "netGamma_alt", "gamma_call", "gamma_put", "aggOpenInterest", "netOpenInterest",\
+                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "ILLIQ", VolIndexTicker, "netGamma", "netGamma_alt", "gamma_call", "gamma_put", "aggOpenInterest", "netOpenInterest",\
                      "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolume", "deltaAdjVolume", "IVOL"])
             
 #Set columns for data frame
@@ -266,9 +285,7 @@ if UnderlyingTicker == "VIX":
                  "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "ILLIQ", "frontPrices", "backPrices", "frontVolume", "backVolume", "netGamma", "netGamma_alt", "gamma_call", "gamma_put", "aggOpenInterest", "netOpenInterest",\
                      "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolume", "deltaAdjVolume", "IVOL"])
          
-
-    
-
+   
 #Sync Data of underlying and aggregate
 aggregateDataSynced = bt.SyncData(UnderlyingData, aggregateData, removeNonOverlapping = True)    
 
@@ -276,13 +293,16 @@ aggregateDataSynced = bt.SyncData(UnderlyingData, aggregateData, removeNonOverla
 aggregateDf  =  pd.DataFrame.from_records(aggregateDataSynced, columns = cols)
 aggregateDf  = aggregateDf.iloc[lookback:, :] #Kill lookback period
 
+#plt.figure()
+#plt.plot(UnderlyingVolIndex)
+#plt.plot(IVOL*100)
+
 
 ## EXPORT DATA TO EXCEL ##
 saveloc = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
 aggregateDf.to_csv(path_or_buf = saveloc + UnderlyingTicker + "AggregateData.csv" , index = False)
 
 
-    
     
     
     
