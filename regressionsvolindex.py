@@ -129,7 +129,7 @@ def plotResiduals(residuals, lag = None, ticker = None, color = '#0504aa', histt
 
 # #Set up Regressions
 #lagList = [1, 2, 5, 10]
-lag     = 1
+lag     = 2
 hist    = False
 scatter = False
 ETFMultiplierList = np.array([10,40,10])
@@ -256,13 +256,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
     pvals     = np.round(reg.pvalues, decimals = 4)
     r_squared = np.round(reg.rsquared, decimals = 4)
         
-         
-    #LASSO FOR Parameter selection
-    LassoFeature = LassoCV(n_alphas = 100, fit_intercept = False, normalize = False, cv = 10, \
-                          max_iter = 10000, tol = 1e-3)
-    LassoFeature.fit(X, y)
-    LassoCoefs = LassoFeature.coef_
-    isImportantFeatures = (LassoCoefs != 0) 
+        
         
 
     ### Result Print
@@ -298,7 +292,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
     #######################################
     ######### Control Regression ##########
     
-    y_control = y_control[1:]
+    y_control = y_control[lag:]
     X_control = X_control[0:-lag, :]       #Lag matrix accordingly 
     X_control = sm.add_constant(X_control) #add constant
 

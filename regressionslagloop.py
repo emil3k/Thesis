@@ -165,7 +165,7 @@ for i in np.arange(0, len(lagList)):
             netGamma_scaled = netGamma / marketCap
             netGamma_barbon = netGamma / MAdollarVolume
         else:
-            netGamma_scaled = netGamma / MAdollarVolume
+            netGamma_scaled = netGamma / marketCap
             
       
        
@@ -194,12 +194,12 @@ for i in np.arange(0, len(lagList)):
         y_control = np.abs(xsret[2:])
         
         #Feature correlation
-        IndependentVarDf = pd.DataFrame.from_records(X_control, columns = [r'$netGamma_t%.5f$', r'$IVOL_t%.5f$', r'$IVOL_{t-1}%.5f$', r'$IVOL_{t-2}%.5f$', r'$|R_t|%.5f$', r'$|R_{t-1}|%.5f$', r'$|R_{t-2}|%.5f$' ])
-        corrMatrix       = IndependentVarDf.corr()
+        #IndependentVarDf = pd.DataFrame.from_records(X_control, columns = [r'$netGamma_t%.5f$', r'$IVOL_t%.5f$', r'$IVOL_{t-1}%.5f$', r'$IVOL_{t-2}%.5f$', r'$|R_t|%.5f$', r'$|R_{t-1}|%.5f$', r'$|R_{t-2}|%.5f$' ])
+        #corrMatrix       = IndependentVarDf.corr()
         
-        plt.figure()
-        sn.heatmap(corrMatrix, annot = True)
-        plt.title("Independent Variable Correlation, " + ticker)
+        #plt.figure()
+        #sn.heatmap(corrMatrix, annot = True)
+        #plt.title("Independent Variable Correlation, " + ticker)
         
         
         ####################################################
@@ -359,6 +359,25 @@ plt.ylabel("t-Value")
 plt.xlabel("Lag in Days")
 plt.title("MM Net Gamma Exposure Regression T-Value by Lag")
 plt.legend()
+
+
+coefLagMat[:, -1] = coefLagMat[:, -1]*(-1)
+tValLagMat[:, -1] = tValLagMat[:, -1]*(-1)
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize = (10, 3))
+fig.suptitle('Coefficients and t-values by Lag', y = 0.98)
+for i in np.arange(0, len(UnderlyingTicker)):
+   ax1.plot(lagList, coefLagMat[:, i], color = colors[i])
+ax1.set_ylabel("Regression Coefficients")
+ax1.set_xlabel("Lags in days")
+
+for i in np.arange(0, len(UnderlyingTicker)):
+   ax2.plot(lagList, tValLagMat[:, i], color = colors[i], label = UnderlyingTicker[i])
+   ax2.plot(lagList, -1.645*np.ones((len(lagList))), "k--" )
+ax2.set_ylabel("Regression Coefficient t-Value")
+ax2.set_xlabel("Lags in days")
+fig.legend()
+
 
 
 # X   = netGamma[0:-lag]

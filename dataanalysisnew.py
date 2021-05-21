@@ -316,8 +316,22 @@ plt.legend()
 ######## Bucket Plots ##############
 
 ######### BUCKETS ##############
-[bMeans, bAbsMeans, bStd] = gf.plotBucketStats(netGammaIndex_scaled, IndexXsReturns, lag = 1, nBuckets = 6, UnderlyingTicker = UnderlyingTicker, color = prefColor, alpha = 0.8, periodLabel = periodLabelIndex) #regular buckets
-[bMeans, bAbsMeans, bStd] = gf.plotBucketStats(netGammaETF_scaled, ETFXsReturns, lag = 1, nBuckets = 6, UnderlyingTicker = UnderlyingETFTicker, color = "red", alpha = 0.8, periodLabel = periodLabelETF) #regular buckets
+[bMeans, bAbsMeansSPX, bStd] = gf.plotBucketStats(netGammaIndex_scaled, IndexXsReturns, lag = 1, nBuckets = 6, UnderlyingTicker = UnderlyingTicker, color = prefColor, alpha = 0.8, periodLabel = periodLabelIndex) #regular buckets
+[bMeans, bAbsMeansSPY, bStd] = gf.plotBucketStats(netGammaETF_scaled, ETFXsReturns, lag = 1, nBuckets = 6, UnderlyingTicker = UnderlyingETFTicker, color = "red", alpha = 0.8, periodLabel = periodLabelETF) #regular buckets
+
+#Plot bucket results
+nBuckets = 6
+x = np.arange(1, nBuckets + 1)
+width = 0.4
+plt.figure(figsize = (7,4))
+plt.bar(x - width/2, bAbsMeansSPX*100, width = width, color = prefColor, alpha = 0.8, label = UnderlyingTicker)
+plt.bar(x + width/2, bAbsMeansSPY*100, width = width, color = "red", alpha = 0.8, label = UnderlyingETFTicker)    
+plt.title("Avgerage Absolute Returns by Gamma Exposure")
+plt.xlabel("MM Gamma Exposure (1 is the lowest quantile)")
+plt.ylabel("Average Absolute Returns (%)")
+plt.legend()
+plt.show()
+
 
 #VIX Returns for SPX gamma
 #VIXandSPX = gf.plotBucketStats(netGammaSPX, Returns, lag = 1, nBuckets = 6, periodLabel = "SPX Gamma")
@@ -374,6 +388,63 @@ deltaAdjOpenInterestETFLong[0:]  = np.nan
 deltaAdjOpenInterestETFLong[-len(deltaAdjOpenInterestETF):] = deltaAdjOpenInterestETF / ETFMultiplier
 
 
+#Summary statistics
+meanOI_index   = np.round(np.mean(openInterestIndex)/1e6, decimals = 2)
+medianOI_index =  np.round(np.median(openInterestIndex) /1e6, decimals = 2)
+maxOI_index    =  np.round(np.max(openInterestIndex) /1e6, decimals = 2)
+minOI_index    =  np.round(np.min(openInterestIndex) /1e6, decimals = 2)
+
+#Raw 
+meanOI_ETF   =  np.round(np.mean(openInterestETF) / 1e6, decimals = 2)
+medianOI_ETF =  np.round(np.median(openInterestETF) /1e6, decimals = 2)
+maxOI_ETF    =  np.round(np.max(openInterestETF) / 1e6, decimals = 2)
+minOI_ETF    =  np.round(np.min(openInterestETF) /1e6, decimals = 2)
+
+#Index Equivalent
+meanOI_ETF_IE   =  np.round(np.mean(openInterestETFShort) /1e6, decimals = 2)
+medianOI_ETF_IE =  np.round(np.median(openInterestETFShort) /1e6, decimals = 2)
+maxOI_ETF_IE    =  np.round(np.max(openInterestETFShort) / 1e6, decimals = 2)
+minOI_ETF_IE    =  np.round(np.min(openInterestETFShort) / 1e6, decimals = 2)
+
+OpenInterestDfRaw = pd.DataFrame()
+OpenInterestDfRaw[""] = np.array(["Open Interest (Raw)", "Average", "Median", "Max", "Min"])
+OpenInterestDfRaw[UnderlyingTicker] = np.array(["", meanOI_index, medianOI_index, maxOI_index, minOI_index])
+OpenInterestDfRaw[UnderlyingETFTicker] = np.array(["", meanOI_ETF, medianOI_ETF, maxOI_ETF, minOI_ETF])
+
+OpenInterestDfIE = pd.DataFrame()
+OpenInterestDfIE[""] = np.array(["Open Interest (IEU)", "Average", "Median", "Max", "Min"])
+OpenInterestDfIE[UnderlyingTicker] = np.array(["", meanOI_index, medianOI_index, maxOI_index, minOI_index])
+OpenInterestDfIE[UnderlyingETFTicker] = np.array(["", meanOI_ETF_IE, medianOI_ETF_IE, maxOI_ETF_IE, minOI_ETF_IE])
+
+
+OpenInterestDfComb = pd.DataFrame()
+#OpenInterestDfComb["In Millions"]       = np.array(["Open Interest (Raw)", "Average", "Median", "Max", "Min", "Open Interest (IEU)", "Average", "Median", "Max", "Min"])
+OpenInterestDfComb[UnderlyingTicker]    = np.array(["", meanOI_index, medianOI_index, maxOI_index, minOI_index, "", meanOI_index, medianOI_index, maxOI_index, minOI_index])
+OpenInterestDfComb[UnderlyingETFTicker] = np.array(["", meanOI_ETF, medianOI_ETF, maxOI_ETF, minOI_ETF, "", meanOI_ETF_IE, medianOI_ETF_IE, maxOI_ETF_IE, minOI_ETF_IE])
+
+
+#Save dataframe to excel
+saveloc = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/OpenInterestTables/"
+OpenInterestDfComb.to_csv(path_or_buf = saveloc + UnderlyingTicker + "OpenInterestTable.csv" , index = False)
+
+sys.exit()
+#Reload excels and create latex table
+AssetList = ["SPX", "NDX", "RUT"]
+combDf = pd.DataFrame()
+combDf["In Millions"] =  np.array(["Open Interest (Raw)", "Average", "Median", "Max", "Min", "Open Interest (IEU)", "Average", "Median", "Max", "Min"])
+for i in np.arange(0, 3):
+    t  = AssetList[i]        
+    df = pd.read_csv(saveloc + t + "OpenInterestTable.csv")
+    combDf = pd.concat((combDf, df), axis = 1)
+    
+
+#Print to latex
+print(OpenInterestDfRaw.to_latex(index=False))
+print(OpenInterestDfIE.to_latex(index=False))
+print(OpenInterestDfComb.to_latex(index=False))
+print(combDf.to_latex(index=False))
+
+
 #Smooth data for nicer plots
 volumeDataToSmooth = np.concatenate((volumeIndex.reshape(-1,1), volumeETFLong.reshape(-1,1), deltaAdjVolumeIndex.reshape(-1,1), deltaAdjVolumeETFLong.reshape(-1,1)), axis  = 1)
 [smoothVolumeData, smoothVolumeDates] = gf.smoothData(volumeDataToSmooth, dates4figIndex, lookback = 100)
@@ -416,7 +487,7 @@ plt.legend()
 plt.figure()
 plt.plot(dates4figIndex, np.log(totalDeltaAdjOptionVolume), color = prefColor, alpha = 0.8, label = "Option Volume")
 plt.plot(dates4figIndex, np.log(volumeIndex + volumeETFLong2/ETFMultiplier), color = "red", alpha = 0.8, label = "Index Volume")
-plt.title("Underlying vs. Delta Adj. Option Volume, Russell 2000")
+plt.title("Underlying vs. Delta Adj. Option Volume, " + UnderlyingTicker + " & " + UnderlyingETFTicker )
 plt.ylabel("Volume Log Index Equivalent Units")
 plt.legend()
 
@@ -461,7 +532,6 @@ plt.ylabel("Open Interst Ratio Index Equivalent Units")
 
 
 
-sys.exit()
 
 #smoothCols = np.array(["aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
 #                        "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingTicker + " Volume",\
@@ -580,6 +650,30 @@ plt.legend()
 plt.show()
 
 
+#Bar Subplot
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize = (10, 3))
+fig.suptitle('Return Reversals for ' + UnderlyingTicker + ' (left) and ' + UnderlyingETFTicker + ' (right)', y = 0.98)
+ax1.bar(r1, (CondReversalBarsIndex - MeanReturnBarsIndex)*100, width = barWidth, color = prefColor, alpha = 0.8, label = "Cond. on gamma and return")  
+ax1.bar(r2, (UncondReversalBarsIndex - MeanReturnBarsIndex)*100, width = barWidth, color = "silver", alpha = 0.8,  label = "Cond. on return")
+ax1.set_ylabel("Avg Cond. Return - Sample Average (%)")
+ax1.set_xlabel("Previous Day Net Gamma and Return Combinations" + " (" + periodLabelIndex + ")")
+ax1.set_xticks(r1 + barWidth/2, minor = False)
+ax1.set_xticklabels(ticks)
+ax1.axhline(y=0, color='k', linestyle='-', linewidth = 0.5)
+ax1.set_ylim([-0.07, 0.10])
+ax1.legend()
+
+ax2.bar(r1, (CondReversalBarsETF - MeanReturnBarsETF)*100,   width = barWidth, color = "red", alpha = 0.8, label = "Cond. on gamma and return")  
+ax2.bar(r2, (UncondReversalBarsETF - MeanReturnBarsETF) *100, width = barWidth, color = "silver", alpha = 0.8,  label = "Cond. on return")
+ax2.set_ylim([-0.07, 0.10])
+ax2.axhline(y=0, color='k', linestyle='-', linewidth = 0.5)
+#ax2.set_title(UnderlyingETFTicker)
+ax2.set_xticks(r1 + barWidth/2, minor = False)
+ax2.set_xticklabels(ticks)
+ax2.legend()
+#fig.legend()
+
+
 ############################
 #Assumptions Score Bar plot
 IndexScores = np.array([7, 4, 0.1, 1])
@@ -597,7 +691,6 @@ plt.ylabel("Number of Papers Supporting/Contradicting")
 plt.xticks(x, labels, rotation='horizontal')
 plt.legend()
 plt.show()
-
 
 
 

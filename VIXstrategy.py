@@ -109,8 +109,8 @@ timedShortBackReturns    = (-1)*shortSignal[0:-lag]*VIXReturns[lag:, 1]*scale #g
 
 
 #Combo Strategies
-timedLSFrontReturns = timedFrontReturns + timedShortFrontReturns#long/short gamma-timed front
-timedLSBackReturns  = timedBackReturns +  timedShortBackReturns #long/short gamma-timed back
+timedLSFrontReturns = timedFrontReturns + timedShortFrontReturns   #long/short gamma-timed front
+timedLSBackReturns  = timedBackReturns +  timedShortBackReturns    #long/short gamma-timed back
 timedLSTermReturns  = timedBackReturns +  timedShortFrontReturns   #long back, short front gamma-timed
 
 

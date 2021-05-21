@@ -13,9 +13,9 @@ import sys
 ## Aggregate Option Data to daily series
 
 ### SET WHICH ASSET TO BE IMPORTED #######################################################
-UnderlyingAssetName   = "IWM US Equity"
-UnderlyingTicker      = "IWM"
-VolIndexTicker        = "RVX Index"
+UnderlyingAssetName   = "SPX Index"
+UnderlyingTicker      = "SPX"
+VolIndexTicker        = "SPX Index"
 loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/CleanData/"
 equity_index          = False
 ##########################################################################################
@@ -86,8 +86,11 @@ if UnderlyingTicker == "VIX":
     backVolume   = futVolume.iloc[:, 2].to_numpy()
 
     #Market Cap "Estimation" for VIX
-    VIXMarketCap = np.sum((futOpenInterest.iloc[:, 1:].to_numpy()) * (futPricesUnrolled.iloc[:, 1:].to_numpy()), 1)
+    VIXMarketCap       = np.sum((futOpenInterest.iloc[:, 1:].to_numpy()) * (futPricesUnrolled.iloc[:, 1:].to_numpy()), 1)
     
+    #Volume Estimation for VIX
+    VIXVolume          = np.sum((futVolume.iloc[:, 1:-1].to_numpy()), 1)
+    VIXDollarVolume    = np.sum((futVolume.iloc[:, 1:-1].to_numpy()) * (futPricesUnrolled.iloc[:, 1:].to_numpy()), 1)
 
 ################################
 ## Compute and aggregate data ##
@@ -102,13 +105,15 @@ UnderlyingDates     = UnderlyingDataTr["Dates"].to_numpy()
 UnderlyingPrices    = UnderlyingDataTr["Price"].to_numpy()
 UnderlyingVolume    = UnderlyingDataTr["Volume"].to_numpy()
 
-if UnderlyingTicker != "VIX":
-    UnderlyingVolIndex  = UnderlyingDataTr[VolIndexTicker].to_numpy()
+
+sys.exit()
 
 if UnderlyingTicker == "VIX":
     UnderlyingMarketCap = VIXMarketCap
+    UnderlyingVolIndex  = UnderlyingPrices
 else:    
     UnderlyingMarketCap = UnderlyingDataTr["Market Cap"].to_numpy()
+    UnderlyingVolIndex  = UnderlyingDataTr[VolIndexTicker].to_numpy()
 
 if equity_index == True:
     UnderlyingTR    = UnderlyingDataTr["TR Index"].to_numpy()
@@ -124,7 +129,9 @@ if UnderlyingTicker != "VIX": #Backfill market cap unless underlying is VIX
     fillSeries = startVal * refCumRet[0:-1]      #Create price series
     UnderlyingMarketCap[0:refInd] = fillSeries   #Add filled market cap values
 
-
+else:
+    UnderlyingReturns = bt.computeReturns(frontPrices)
+    
 #MA dollar volume
 lookback = 90
 nDays          = np.size(UnderlyingVolume)
@@ -141,19 +148,38 @@ for i in np.arange(lookback, nDays):
     #grab volume
     if UnderlyingTicker == "VIX":
         volume = frontVolume[i - lookback:i]
+        returns = UnderlyingReturns[i - lookback:i]
+        dollar_volume = VIXDollarVolume[i - lookback:i]
         #Should have futures price here, estimate with spot price
     else:
         volume = UnderlyingVolume[i - lookback:i] 
+        price         = UnderlyingPrices[i - lookback:i] #grab price
+        returns       = UnderlyingReturns[i - lookback:i] #grab returns
+        dollar_volume = volume*price #compute dollar volume
     
-    price         = UnderlyingPrices[i - lookback:i] #grab price
-    returns       = UnderlyingReturns[i - lookback:i] #grab returns
-    abs_returns   = np.abs(returns)
-    dollar_volume = volume*price #compute dollar volume
+    
+    abs_returns   = np.abs(returns)    
     daily_illiq   = abs_returns / dollar_volume
     
     ILLIQ[i]          = np.mean(daily_illiq)
+    
     MAVolume[i]       = np.mean(volume)
     MADollarVolume[i] = np.mean(dollar_volume)
+
+
+#Daily Illiq measure
+if UnderlyingTicker != "VIX":
+    ILLIQ_daily = np.abs(UnderlyingReturns) / (UnderlyingVolume * UnderlyingPrices)
+else:
+    ILLIQ_daily = np.abs(UnderlyingReturns) / VIXDollarVolume
+    
+#Monthly Lookback ILLIQ Measure
+monthly_lookback = 30 
+ILLIQ_monthly = np.zeros((nDays,))
+for i in np.arange(monthly_lookback, nDays):
+    illiq_30_day     = ILLIQ_daily[i - monthly_lookback:i]
+    ILLIQ_monthly[i] = np.mean(illiq_30_day)
+
 
     
 #Option Dates
@@ -262,19 +288,20 @@ if equity_index == True:
     UnderlyingData          = np.concatenate((UnderlyingDates.reshape(-1, 1), UnderlyingPrices.reshape(-1, 1),\
                                 UnderlyingVolume.reshape(-1, 1), UnderlyingDollarVolume.reshape(-1, 1),\
                                 (Rf*100).reshape(-1, 1), MAVolume.reshape(-1,1), MADollarVolume.reshape(-1,1), \
-                                UnderlyingMarketCap.reshape(-1, 1), ILLIQ.reshape(-1,1), UnderlyingTR.reshape(-1,1), UnderlyingVolIndex.reshape(-1,1)), axis = 1) #add price and volume 
+                                UnderlyingMarketCap.reshape(-1, 1), ILLIQ.reshape(-1,1), UnderlyingTR.reshape(-1,1), \
+                                UnderlyingVolIndex.reshape(-1,1), ILLIQ_monthly.reshape(-1,1), ILLIQ_daily.reshape(-1,1)), axis = 1) #add price and volume 
     cols = np.array(["Dates", UnderlyingTicker, UnderlyingTicker + " Volume", UnderlyingTicker + " Dollar Volume",\
-                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "ILLIQ", "TR Index", VolIndexTicker, "netGamma", "netGamma_alt", "gamma_call", "gamma_put", "aggOpenInterest", "netOpenInterest",\
+                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "ILLIQ", "TR Index", VolIndexTicker, "ILLIQ_monthly", "ILLIQ_daily", "netGamma", "netGamma_alt", "gamma_call", "gamma_put", "aggOpenInterest", "netOpenInterest",\
                      "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolume", "deltaAdjVolume", "IVOL"])
 
 else:
         UnderlyingData          = np.concatenate((UnderlyingDates.reshape(-1, 1), UnderlyingPrices.reshape(-1, 1),\
                                 UnderlyingVolume.reshape(-1, 1), UnderlyingDollarVolume.reshape(-1, 1),\
                                 (Rf*100).reshape(-1, 1), MAVolume.reshape(-1,1), MADollarVolume.reshape(-1,1), UnderlyingMarketCap.reshape(-1, 1), \
-                                ILLIQ.reshape(-1,1), UnderlyingVolIndex.reshape(-1,1)), axis = 1)    
+                                ILLIQ.reshape(-1,1), UnderlyingVolIndex.reshape(-1,1), ILLIQ_monthly.reshape(-1,1), ILLIQ_daily.reshape(-1,1)), axis = 1)    
             
         cols = np.array(["Dates", UnderlyingTicker, UnderlyingTicker + " Volume", UnderlyingTicker + " Dollar Volume",\
-                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "ILLIQ", VolIndexTicker, "netGamma", "netGamma_alt", "gamma_call", "gamma_put", "aggOpenInterest", "netOpenInterest",\
+                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "ILLIQ", VolIndexTicker, "ILLIQ_monthly", "ILLIQ_daily", "netGamma", "netGamma_alt", "gamma_call", "gamma_put", "aggOpenInterest", "netOpenInterest",\
                      "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolume", "deltaAdjVolume", "IVOL"])
             
 #Set columns for data frame
@@ -282,7 +309,7 @@ if UnderlyingTicker == "VIX":
     UnderlyingData = np.concatenate((UnderlyingData, frontPrices.reshape(-1, 1), backPrices.reshape(-1, 1), frontVolume.reshape(-1, 1), backVolume.reshape(-1, 1)), axis = 1)
     
     cols = np.array(["Dates", UnderlyingTicker, UnderlyingTicker + " Volume", UnderlyingTicker + " Dollar Volume",\
-                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "ILLIQ", "frontPrices", "backPrices", "frontVolume", "backVolume", "netGamma", "netGamma_alt", "gamma_call", "gamma_put", "aggOpenInterest", "netOpenInterest",\
+                 "LIBOR", "MAVolume", "MADollarVolume", "Market Cap", "ILLIQ", VolIndexTicker, "ILLIQ_monthly", "ILLIQ_daily", "frontPrices", "backPrices", "frontVolume", "backVolume", "netGamma", "netGamma_alt", "gamma_call", "gamma_put", "aggOpenInterest", "netOpenInterest",\
                      "deltaAdjOpenInterest", "deltaAdjNetOpenInterest", "aggVolume", "deltaAdjVolume", "IVOL"])
          
    
@@ -297,13 +324,15 @@ aggregateDf  = aggregateDf.iloc[lookback:, :] #Kill lookback period
 #plt.plot(UnderlyingVolIndex)
 #plt.plot(IVOL*100)
 
-
+sys.exit()
 ## EXPORT DATA TO EXCEL ##
 saveloc = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
 aggregateDf.to_csv(path_or_buf = saveloc + UnderlyingTicker + "AggregateData.csv" , index = False)
 
 
-    
+plt.figure()
+plt.plot(ILLIQ_monthly[1000:])
+plt.plot(np.median(ILLIQ_monthly)*np.ones((len(ILLIQ_monthly[1000:]))))
     
     
     

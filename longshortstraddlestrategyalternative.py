@@ -133,6 +133,17 @@ rollDay    = 7 #days before expiration
 currentPos = 0 #Initialize no position
 lag        = 0
 
+#Include Transaction Costs?
+include_TC = False
+
+if include_TC == True: #trade ad bid and ask
+    bid_col = 4
+    ask_col = 5
+else: #use midprice
+    bid_col = 15
+    as_col  = 15
+
+
 #Preallocate
 isRollover  = np.zeros((nDays, )) #
 disapearingOption = []
@@ -220,7 +231,7 @@ for i in np.arange(0, nDays - lag - 1):
         else:
             disapearingOptionBack_un.append([day, "current"]) 
             
-        
+    ###############################   
     # Gamma Timed Strategy
     gammaSignal = (netGamma[i] < 0)
     if gammaSignal == True and currentPos == 0: #New Position to be opened
@@ -236,7 +247,7 @@ for i in np.arange(0, nDays - lag - 1):
         
                #Call leg returns
                if len(nextDayCall) > 0:    
-                   callReturns[i + lag + 1] = nextDayCall[0, 15] / currentDayCall[0, 15] - 1
+                   callReturns[i + lag + 1] = nextDayCall[0, 15] / currentDayCall[0, ask_col] - 1
                    
                    #Store information on calls traded
                    currentDayCallsTraded[i + lag, :]   = currentDayCall.reshape(22,)
@@ -246,7 +257,7 @@ for i in np.arange(0, nDays - lag - 1):
                
                #Put leg returns
                if len(nextDayPut) > 0:
-                   putReturns[i + lag + 1]  = nextDayPut[0, 15] / currentDayPut[0, 15] - 1
+                   putReturns[i + lag + 1]  = nextDayPut[0, 15] / currentDayPut[0, ask_col] - 1
                    
                    #Store information on puts traded
                    currentDayPutsTraded[i + lag, :]     = currentDayPut.reshape(22,)
@@ -395,7 +406,7 @@ for i in np.arange(0, nDays - lag - 1):
     
 #Straddle returns        
 straddleReturns = callReturns + putReturns
-uncondStraddleReturns = uncondCallReturns + uncondPutReturns
+uncondStraddleReturnsLong = uncondCallReturns + uncondPutReturns
 
 
 #Trading Strategy
@@ -404,7 +415,8 @@ nDays      = np.size(UniqueDates)
 rollDay    = 7 #days before expiration
 currentPos = 0 #Initialize no position
 lag        = 0
-
+    
+    
 #Preallocate
 isRollover  = np.zeros((nDays, )) #
 disapearingOption = []
@@ -419,11 +431,11 @@ uncondCallReturns = np.zeros((nDays, ))
 uncondPutReturns = np.zeros((nDays, ))
 
 #Preallocate for traded options track record
-currentDayCallsTraded = np.zeros((nDays, np.size(OptionDataArr, 1)))
-nextDayCallsTraded    = np.zeros((nDays, np.size(OptionDataArr, 1)))
+#currentDayCallsTraded = np.zeros((nDays, np.size(OptionDataArr, 1)))
+#nextDayCallsTraded    = np.zeros((nDays, np.size(OptionDataArr, 1)))
 
-currentDayPutsTraded  = np.zeros((nDays, np.size(OptionDataArr, 1)))
-nextDayPutsTraded     = np.zeros((nDays, np.size(OptionDataArr, 1)))
+#currentDayPutsTraded  = np.zeros((nDays, np.size(OptionDataArr, 1)))
+#nextDayPutsTraded     = np.zeros((nDays, np.size(OptionDataArr, 1)))
 
 turnover = np.zeros((nDays, ))
 
@@ -675,7 +687,7 @@ for i in np.arange(0, nDays - lag - 1):
     
 #Straddle returns        
 straddleReturnsShort = (-1)*(callReturns + putReturns)
-uncondStraddleReturns = (-1)*(uncondCallReturns + uncondPutReturns)
+uncondStraddleReturnsShort = (-1)*(uncondCallReturns + uncondPutReturns)
 
 
 LSStraddleReturns = straddleReturns + straddleReturnsShort
@@ -700,8 +712,8 @@ straddleReturnsLSScaled    = LSStraddleReturns*scale
 
 uncondCallReturnsScaled = uncondCallReturns*scale
 uncondPutReturnsScaled  = uncondPutReturns*scale
-uncondStraddleReturnsScaled = uncondStraddleReturns*scale
-
+uncondStraddleReturnsShortScaled = uncondStraddleReturnsShort*scale
+uncondStraddleReturnsLongScaled = uncondStraddleReturnsLong*scale
 
 #Overlay
 #overlayReturns = (1 - scale)*underlyingXsReturns + straddleReturnsScaled
@@ -718,7 +730,8 @@ cumStraddleReturnsLS    =  np.cumprod(1 + straddleReturnsLSScaled)
 cumUnderlyingReturns     = np.cumprod(1 + underlyingXsReturns)
 cumUncondCallReturns     = np.cumprod(1 + uncondCallReturnsScaled)
 cumUncondPutReturns      = np.cumprod(1 + uncondPutReturnsScaled)
-cumUncondStraddleReturns = np.cumprod(1 + uncondStraddleReturnsScaled)
+cumUncondStraddleReturnsShort = np.cumprod(1 + uncondStraddleReturnsShortScaled)
+cumUncondStraddleReturnsLong = np.cumprod(1 + uncondStraddleReturnsLongScaled)
 
 
 dates4fig = pd.to_datetime(AggregateDates, format = '%Y%m%d')
@@ -732,6 +745,26 @@ plt.plot(dates4fig, cumStraddleReturnsLS,    color = "black",   alpha = 1.0, lab
 plt.title("Gamma Timed Index Straddle Strategies, " + UnderlyingTicker)
 plt.ylabel("Cumulative Excess Returns")
 plt.legend()
+
+#Plot Equity Lines
+plt.figure()
+plt.plot(dates4fig, cumUncondStraddleReturnsShort,  color = "red", alpha = 0.8, label = "Short Straddle")
+plt.plot(dates4fig, cumStraddleReturnsShort, color = prefColor,     alpha = 0.8, label = "Short Straddle Gamma-Timed")
+plt.title("Short Straddle Strategies, " + UnderlyingTicker)
+plt.ylabel("Cumulative Excess Returns")
+plt.legend()
+
+#Plot Equity Lines
+plt.figure()
+plt.plot(dates4fig, cumUncondStraddleReturnsLong,  color = "red", alpha = 0.8, label = "Long Straddle")
+plt.plot(dates4fig, cumStraddleReturnsLong, color = prefColor,     alpha = 0.8, label = "Long Straddle Gamma-Timed")
+plt.title("Long Straddle Strategies, " + UnderlyingTicker)
+plt.ylabel("Cumulative Excess Returns")
+plt.legend()
+
+
+
+
 
 
 

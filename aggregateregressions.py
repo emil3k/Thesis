@@ -1,5 +1,17 @@
 # -*- coding: utf-8 -*-
 """
+Created on Fri May  7 14:13:19 2021
+
+@author: ekblo
+"""
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Apr 30 13:54:25 2021
+
+@author: ekblo
+"""
+# -*- coding: utf-8 -*-
+"""
 Created on Sat Jan 23 13:10:36 2021
 
 @author: ekblo
@@ -16,12 +28,14 @@ from sklearn.linear_model import LassoCV
 #Regressions
 
 ### SET IMPORT PARAMS ####################################################################
-UnderlyingAssetName   = ["SPX Index", "SPY US Equity", "NDX Index", "QQQ US Equity", "RUT Index", "IWM US Equity", "VIX Index"]
-UnderlyingTicker      = ["SPX", "SPY", "NDX", "QQQ", "RUT", "IWM", "VIX"]
+UnderlyingAssetName   = ["SPX Index", "SPY US Equity", "NDX Index", "QQQ US Equity", "RUT Index", "IWM US Equity"]
+UnderlyingTicker      = ["SPX", "SPY", "NDX", "QQQ", "RUT", "IWM"]
+volIndexTicker        = ["VIX Index", "VIX Index", "VXN Index", "VXN Index", "RVX Index", "RVX Index"]
 
-IndexTicker = ["SPX", "NDX", "RUT"]
-ETFTicker   = ["SPY", "QQQ", "IWM"]
 
+IndexTickers = ["SPX", "NDX", "RUT"]
+ETFTickers   = ["SPY", "QQQ", "IWM"]
+ETFMultipliers = [10, 40, 10]
 
 IsEquityIndex        = [True, False, True, False, True, False, False]
 #UnderlyingAssetName   = ["SPX US Equity"]
@@ -32,6 +46,9 @@ loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/Aggr
 prefColor             = '#0504aa'
 ##########################################################################################
 
+
+#Load Data
+
 #Load Data
 AggregateData = []
 for ticker in UnderlyingTicker:
@@ -39,15 +56,43 @@ for ticker in UnderlyingTicker:
     AggregateData.append(data)
 
 
+AggregateGammaList = []
+IndexGammaList = []
+ETFGammaList = []
+for i in np.arange(0, len(IndexTickers)):
+   
+    #Store index and ETF data separately for simplicity
+    indexticker = IndexTickers[i]
+    etfticker   = ETFTickers[i]
+    etfmultiplier = ETFMultipliers[i]
+    
+    IndexData   = pd.read_csv(loadloc + indexticker + "AggregateData.csv")
+    ETFData     = pd.read_csv(loadloc + etfticker + "AggregateData.csv")
+   
+    #Compute aggregata net gamma 
+    IndexGamma  = IndexData["netGamma"].to_numpy()
+    ETFGamma    = ETFData["netGamma"].to_numpy()
+    ETFGamma = ETFGamma / etfmultiplier**2
+    
+    AggregateGamma = IndexGamma[-len(ETFGamma):] + ETFGamma
+    IndexGamma     = IndexGamma[-len(ETFGamma):]
+    
+    AggregateGammaList.append(AggregateGamma)
+    AggregateGammaList.append(AggregateGamma)
+    
+    IndexGammaList.append(IndexGamma)
+    ETFGammaList.append(ETFGamma)
+
+
 #Compute returns and adjusted gamma
 nAssets = len(UnderlyingTicker)
 TotalReturns = []
 XsReturns    = []
 for i in np.arange(0, nAssets):
-    data   = AggregateData[i]
+    data   = AggregateData[i]    
     ticker = UnderlyingTicker[i]
     eqIndexFlag  = IsEquityIndex[i]
-    rf     = data["LIBOR"].to_numpy()
+    rf           = data["LIBOR"].to_numpy()
     
     def computeRfDaily(data):
         dates            = data["Dates"].to_numpy()
@@ -119,16 +164,19 @@ def plotResiduals(residuals, lag = None, ticker = None, color = '#0504aa', histt
 
 # #Set up Regressions
 #lagList = [1, 2, 5, 10]
-lag     = 10
+lag     = 1
 hist    = False
 scatter = False
 ETFMultiplierList = np.array([10,40,10])
 for j in np.arange(0, len(UnderlyingTicker)):
-    ticker   = UnderlyingTicker[j]
-    name     = UnderlyingAssetName[j]
-    data     = AggregateData[j]
-    xsret    = XsReturns[j]
-    isETF    = np.in1d(ETFTicker, ticker)
+    ticker    = UnderlyingTicker[j]
+    volticker = volIndexTicker[j]
+    name      = UnderlyingAssetName[j]
+    data      = AggregateData[j]
+    aggGamma  = AggregateGammaList[j]
+    xsret     = XsReturns[j]
+   
+    isETF    = np.in1d(ETFTickers, ticker)
     
     if np.sum(isETF) == 1: #if ticker is an ETF
        ETFMultiplier  = ETFMultiplierList[isETF]   
@@ -139,15 +187,25 @@ for j in np.arange(0, len(UnderlyingTicker)):
     else:
        marketCap      = data["Market Cap"].to_numpy()
     
+        
     
     #Compute Independent Variable Time Series
     #Grab necessary data
-    netGamma       = data["netGamma"].to_numpy()
+    netGamma       = aggGamma #set netGamma equal to aggGamma to be able to reuse code
     MAdollarVolume = data["MADollarVolume"].to_numpy() 
-    ILLIQ          = data["ILLIQ_monthly"].to_numpy()
-    ILLIQMedian    = np.median(ILLIQ)    
-    ILLIQMean      = np.mean(ILLIQ)  
-    IVOL           = data["IVOL"].to_numpy()*100
+    ILLIQ          = data["ILLIQ"].to_numpy()
+    IVOL           = data["IVOL"].to_numpy()
+    volIndex       = data[volticker].to_numpy()
+    
+    #trim data to align with shortened net Gamma
+    if len(aggGamma) != len(xsret):
+        xsret     = xsret[-len(aggGamma):]
+        marketCap = marketCap[-len(aggGamma):]
+        IVOL      = IVOL[-len(aggGamma):]
+        ILLIQ     = ILLIQ[-len(aggGamma):]
+        MAdollarVolume = MAdollarVolume[-len(aggGamma):]
+        volIndex  = volIndex[-len(aggGamma):]
+  
     #plt.plot(ILLIQ)
     #plt.plot(np.ones((len(ILLIQ),))*ILLIQMedian, "--r")
     #plt.plot(np.ones((len(ILLIQ),))*ILLIQMean, "--b")
@@ -156,45 +214,66 @@ for j in np.arange(0, len(UnderlyingTicker)):
     netGamma_norm   = (netGamma - np.mean(netGamma)) / np.std(netGamma)
     
     #Use barbon measure for VIX
-    if ticker != "VIX":
-        netGamma_scaled = netGamma / marketCap
-        netGamma_barbon = netGamma / MAdollarVolume
-    else:
-        netGamma_scaled = netGamma / marketCap
-        
-  
+    
+    netGamma_scaled = netGamma / marketCap
+    netGamma_barbon = netGamma / MAdollarVolume
+    
+       
    
     #Standardize meaesure
     #netGamma_scaled = (netGamma_scaled - np.mean(netGamma_scaled)) / np.std(netGamma_scaled)
     #netGamma_scaled = netGamma_scaled / np.std(netGamma_scaled)
-     
     
     #Concatenate Independent variables to X matrix
-    X = np.concatenate((netGamma_scaled.reshape(-1,1), IVOL.reshape(-1,1)), axis = 1)
+    #X = np.concatenate((netGamma_scaled.reshape(-1,1), IVOL.reshape(-1,1)), axis = 1)
     
     ###Control Regression###
     #Lagged values
-    IVOL1          = IVOL[2:].reshape(-1,1)
-    IVOL2          = IVOL[1:-1].reshape(-1,1)
-    IVOL3          = IVOL[0:-2].reshape(-1,1)
+    # IVOL1          = IVOL[2:].reshape(-1,1)
+    # IVOL2          = IVOL[1:-1].reshape(-1,1)
+    # IVOL3          = IVOL[0:-2].reshape(-1,1)
+   
+    # AbsXsReturns  = np.abs(xsret)
+    # AbsXsRet1  = AbsXsReturns[2:].reshape(-1,1)
+    # AbsXsRet2  = np.abs(xsret[1:-1]).reshape(-1,1)
+    # AbsXsRet3  = np.abs(xsret[0:-2]).reshape(-1,1)
+   
+    # #Contatenate laged values to control matrix
+    # X_control = np.concatenate((IVOL2, IVOL3, AbsXsRet1, AbsXsRet2, AbsXsRet3), axis = 1)
+    # X_control = np.concatenate((X[2:], X_control), axis = 1)
+    # y_control = np.abs(xsret[2:])
+    
+    
+    #Trim to match length of vol index
+    volIndex        = volIndex[np.isfinite(volIndex)]
+    netGamma_scaled = netGamma_scaled[-len(volIndex):]
+    xsret           = xsret[-len(volIndex):]
+    ILLIQ           = ILLIQ[-len(volIndex):]
+    
+    ILLIQMedian    = np.median(ILLIQ)    
+    ILLIQMean      = np.mean(ILLIQ)  
+    
+    #Concatenate Independent variables to X matrix
+    X = np.concatenate((netGamma_scaled.reshape(-1,1), volIndex.reshape(-1,1)), axis = 1)
+    
+    ##Control Regression###
+    #Lagged values
+    volIndex1      = volIndex[2:].reshape(-1,1)
+    volIndex2      = volIndex[1:-1].reshape(-1,1)
+    volIndex3      = volIndex[0:-2].reshape(-1,1)
    
     AbsXsReturns  = np.abs(xsret)
-    AbsXsRet1  = AbsXsReturns[2:].reshape(-1,1)
+    AsXsRet1   = AbsXsReturns[2:].reshape(-1,1)
     AbsXsRet2  = np.abs(xsret[1:-1]).reshape(-1,1)
     AbsXsRet3  = np.abs(xsret[0:-2]).reshape(-1,1)
    
     #Contatenate laged values to control matrix
-    X_control = np.concatenate((IVOL2, IVOL3, AbsXsRet1, AbsXsRet2, AbsXsRet3), axis = 1)
+    X_control = np.concatenate((volIndex2, volIndex3, AsXsRet1, AbsXsRet2, AbsXsRet3), axis = 1)
     X_control = np.concatenate((X[2:], X_control), axis = 1)
     y_control = np.abs(xsret[2:])
     
-    #Feature correlation
-    IndependentVarDf = pd.DataFrame.from_records(X_control, columns = [r'$netGamma_t%.5f$', r'$IVOL_t%.5f$', r'$IVOL_{t-1}%.5f$', r'$IVOL_{t-2}%.5f$', r'$|R_t|%.5f$', r'$|R_{t-1}|%.5f$', r'$|R_{t-2}|%.5f$' ])
-    corrMatrix       = IndependentVarDf.corr()
     
-    plt.figure()
-    sn.heatmap(corrMatrix, annot = True)
-    plt.title("Independent Variable Correlation, " + ticker)
+
     
     ######## Illiquidity regression ###############
     negNetGammaDummy   = (netGamma_scaled < 0)
@@ -205,17 +284,18 @@ for j in np.arange(0, len(UnderlyingTicker)):
     
     ######## Reversal Regression ####################
     #Dummies
-    # negNetGammaDummy = (netGamma_scaled < 0)
-    # posNetGammaDummy = (netGamma_scaled > 0)
-    # negReturnDummy   = (xsret < 0)
-    # posReturnDummy   = (xsret > 0)
+    negNetGammaDummy = (netGamma_scaled < 0)
+    posNetGammaDummy = (netGamma_scaled > 0)
+    negReturnDummy   = (xsret < 0)
+    posReturnDummy   = (xsret > 0)
     
-    # #Interactions
-    # negneg = negNetGammaDummy * negReturnDummy
-    # negpos = negNetGammaDummy * posReturnDummy
-    # posneg = posNetGammaDummy * negReturnDummy
-    # pospos = posNetGammaDummy * posReturnDummy
-   
+    #Interactions
+    negneg = negNetGammaDummy * negReturnDummy
+    negpos = negNetGammaDummy * posReturnDummy
+    posneg = posNetGammaDummy * negReturnDummy
+    pospos = posNetGammaDummy * posReturnDummy
+    
+    X_rev = np.concatenate((negneg.reshape(-1,1), negpos.reshape(-1,1), posneg.reshape(-1,1), pospos.reshape(-1,1)), axis = 1)
     
     
     ####################################################
@@ -235,17 +315,11 @@ for j in np.arange(0, len(UnderlyingTicker)):
     pvals     = np.round(reg.pvalues, decimals = 4)
     r_squared = np.round(reg.rsquared, decimals = 4)
         
-         
-    #LASSO FOR Parameter selection
-    LassoFeature = LassoCV(n_alphas = 100, fit_intercept = False, normalize = False, cv = 10, \
-                          max_iter = 10000, tol = 1e-3)
-    LassoFeature.fit(X, y)
-    LassoCoefs = LassoFeature.coef_
-    isImportantFeatures = (LassoCoefs != 0) 
+        
         
 
     ### Result Print
-    legend = np.array(['$\Gamma^{MM}_{t - ' + str(lag) + '}$', " ", '$IVOL_{t - ' + str(lag) + '}$', " ", 'Intercept', " ", '$R^2$' ])
+    legend = np.array(['$\Gamma^{MM}_{t - ' + str(lag) + ', Agg}$', " ", '$IV_{t-1}$', " ", 'Intercept', " ", '$R^2$' ])
     
     sign_test = []
     for pval in pvals:
@@ -289,7 +363,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
     r_squared_control = np.round(reg_control.rsquared, decimals = 4)
         
     ### Alternative Result Print
-    legend_control = np.array(['$\Gamma^{MM}_{t-' + str(lag) + '}$', " ", '$IVOL_{t-1}$', " ", '$IVOL_{t-2}$', " ", '$IVOL_{t-3}$', " ", \
+    legend_control = np.array(['$\Gamma^{MM}_{t-' + str(lag) + ', Agg}$', " ", '$IV_{t-1}$', " ", '$IV_{t-2}$', " ", '$IV_{t-3}$', " ", \
                        '$|R_{t-1}|$', " ", '$|R_{t-2}|$', " ", '$|R_{t-3}|$', " ",  'Intercept', " ", '$R^2$' ])
         
     sign_test_control = []
@@ -335,15 +409,14 @@ for j in np.arange(0, len(UnderlyingTicker)):
     X_liq  = sm.add_constant(X_liq*1)
     X_liq  = X_liq[0:-lag]
     
-    reg_liq       = sm.OLS(y_liq, X_liq).fit(cov_type = "HAC", cov_kwds= {'maxlags':0})
+    reg_liq       = sm.OLS(y_liq, X_liq).fit(cov_type = "HAC", cov_kwds= {'maxlags':1})
     coefs_liq     = np.round(reg_liq.params*100, decimals = 3)   #Multiply net gamma coef by 100 to get bps format
     tvals_liq     = np.round(reg_liq.tvalues, decimals = 3)
     pvals_liq     = np.round(reg_liq.pvalues, decimals = 3)
     r_squared_liq = np.round(reg_liq.rsquared, decimals = 3)
     
     ### Alternative Result Print
-    #legend_liq = np.array(['Negative $\Gamma^{MM}$', " ", 'Low Liquidity', " ", 'Negative $netGamma \times $ Low Liquidity', " ",  'Intercept', " ", '$R^2$' ])
-    legend_liq = np.array(['$I_{\Gamma}$', " ", '$I_L$', " ", '$I_{\Gamma} \times I_L$', " ",  'Intercept', " ", '$R^2$' ])
+    legend_liq = np.array(['Negative $\Gamma^{MM}$', " ", 'Low Liquidity', " ", 'Negative $netGamma \times $ Low Liquidity', " ",  'Intercept', " ", '$R^2$' ])
         
     sign_test_liq = []
     for pval in pvals_liq:
@@ -366,24 +439,21 @@ for j in np.arange(0, len(UnderlyingTicker)):
         results_liqDf["Lag = " + str(lag) + " day"] = legend_liq
         results_liqDf[ticker] = results_liq
         allres_liqDf = results_liqDf
-   # elif j < len(UnderlyingTicker)-1:
-    else:    
+    elif j < len(UnderlyingTicker)-1:
         results_liqDf[ticker] = results_liq
            
-    if j > 0: # and j < len(UnderlyingTicker)-1:
+    if j > 0 and j < len(UnderlyingTicker)-1:
         allres_liqDf = pd.concat((allres_liqDf, results_liqDf), axis = 1)
    
     ########################################
     ######### Reversal Regression #########
    
-    #First regression: Regress return_t on return_t-1
     y_rev  = xsret[lag:]
-    X_rev  = xsret[0:-lag]    
-    
     X_rev  = sm.add_constant(X_rev*1)
+    X_rev  = X_rev[0:-lag]
     
     reg_rev       = sm.OLS(y_rev, X_rev).fit()
-    coefs_rev     = np.round(reg_rev.params, decimals = 3)   #Multiply net gamma coef by 100 to get bps format
+    coefs_rev     = np.round(reg_rev.params*100, decimals = 3)   #Multiply net gamma coef by 100 to get bps format
     tvals_rev     = np.round(reg_rev.tvalues, decimals = 3)
     pvals_rev     = np.round(reg_rev.pvalues, decimals = 3)
     r_squared_rev = np.round(reg_rev.rsquared, decimals = 3)
