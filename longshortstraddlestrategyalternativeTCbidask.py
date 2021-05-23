@@ -952,7 +952,7 @@ totalTurnover = np.abs(turnoverLong) + np.abs(turnoverShort)
 
 LSStraddleReturns = straddleReturnsLong + straddleReturnsShort
 
-
+sys.exit()
 
 #VIX Returns
 #Returns of underlying 
@@ -974,6 +974,16 @@ uncondCallReturnsScaled = uncondCallReturns*scale
 uncondPutReturnsScaled  = uncondPutReturns*scale
 uncondStraddleReturnsShortScaled = uncondStraddleReturnsShort*scale
 uncondStraddleReturnsLongScaled = uncondStraddleReturnsLong*scale
+
+#Gamma Timed Uncond. Strategy
+negGammaSignal = 1*(netGamma < 0)
+posGammaSignal = 1*(netGamma > 0)
+
+gammaTimedLongStraddle  = negGammaSignal[0:-1] * uncondStraddleReturnsLongScaled[1:]
+gammaTimedShortStraddle = posGammaSignal[0:-1] * uncondStraddleReturnsShortScaled[1:]
+
+
+
 
 #OverlayReturns
 longStraddleOverlay = (1 - scale) * underlyingXsReturns + straddleReturnsLongScaled
@@ -1003,14 +1013,12 @@ cumStraddleReturnsShortTC =  np.cumprod(1 + straddleReturnsShortTC)
 cumStraddleReturnsLSTC    =  np.cumprod(1 + straddleReturnsLSTC)
 
 
-
-
 #cumOverlayReturns  = np.cumprod(1 + overlayReturns)
 cumUnderlyingReturns     = np.cumprod(1 + underlyingXsReturns)
 cumUncondCallReturns     = np.cumprod(1 + uncondCallReturnsScaled)
 cumUncondPutReturns      = np.cumprod(1 + uncondPutReturnsScaled)
 cumUncondStraddleReturnsShort = np.cumprod(1 + uncondStraddleReturnsShortScaled)
-cumUncondStraddleReturnsLong = np.cumprod(1 + uncondStraddleReturnsLongScaled)
+cumUncondStraddleReturnsLong  = np.cumprod(1 + uncondStraddleReturnsLongScaled)
 
 
 dates4fig = pd.to_datetime(AggregateDates, format = '%Y%m%d')
