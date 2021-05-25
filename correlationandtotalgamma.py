@@ -95,7 +95,7 @@ for i in np.arange(0, len(UnderlyingTicker)):
        
     #Store returns
     totalReturnsDf[ticker] = totalReturns
-    xsReturnsDf[ticker] = xsReturns
+    xsReturnsDf[ticker]    = xsReturns
  
     AggregateData.append(data)
 
@@ -122,6 +122,8 @@ plt.title("Changes in Net Gamma Correlation")
 totalGamma = netGammaAdjustedDf.to_numpy()
 totalGamma = np.sum(totalGamma, axis = 1)
 
+
+
 # #Set up Regressions
 #lagList = [1, 2, 5, 10]
 lag     = 1
@@ -129,29 +131,29 @@ hist    = False
 scatter = False
 
 for j in np.arange(0, len(UnderlyingTicker)):
-    ticker    = UnderlyingTicker[j]
-    volticker = volIndexTicker[j]
-    name      = UnderlyingAssetName[j]
-    data      = AggregateData[j]
-    xsret     = xsReturnsDf.iloc[:, j].to_numpy()
+    ticker     = UnderlyingTicker[j]
+    volticker  = volIndexTicker[j]
+    name       = UnderlyingAssetName[j]
+    data       = AggregateData[j]
+    xsret      = xsReturnsDf.iloc[:, j].to_numpy()
        
-    
     #Compute Independent Variable Time Series
-    #Grab necessary data
     volIndex       = data[volticker].to_numpy()
-    
-    
     
     #Concatenate Independent variables to X matrix
     X = np.concatenate((totalGamma.reshape(-1,1), volIndex.reshape(-1,1)), axis = 1)
     
     
+    #total gamma ex relevant as control variable
+    netGammaAdjusted = netGammaAdjustedDf.to_numpy()
+    netGamma             = netGammaAdjusted[:, j]
+    netGammaExRelevant   = np.delete(netGammaAdjusted, j, axis = 1)
+    totalGammaExRelevant = np.sum(netGammaExRelevant, axis = 1)
     
+    X_ex = np.concatenate((netGamma.reshape(-1,1), totalGammaExRelevant.reshape(-1,1), volIndex.reshape(-1,1)), axis = 1)
+
     ####################################################
-    ######### Fit regressions and store result #########
-    
-    #######################################
-    ######### Standard Regression #########    
+    ######### Standard Regression - Total Gamma #########    
     y      = np.abs(xsret[lag:])
     nObs   = np.size(y)
    
@@ -163,8 +165,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
     tvals     = np.round(reg.tvalues, decimals = 4)
     pvals     = np.round(reg.pvalues, decimals = 4)
     r_squared = np.round(reg.rsquared, decimals = 4)
-        
-        
+         
        
     ### Result Print
     legend = np.array(['$\Gamma^{MM}_{t - ' + str(lag) + '}$', " ", '$IV_{t-1}$', " ", 'Intercept', " ", '$R^2$' ])
@@ -195,6 +196,57 @@ for j in np.arange(0, len(UnderlyingTicker)):
     if j > 0:
         allresDf = pd.concat((allresDf, resultsDf), axis = 1)
 
+
+    ######### Regression Total Gamma Ex Relevant as Control #########    
+    y      = np.abs(xsret[lag:])
+    nObs   = np.size(y)
+   
+    X_ex      = X_ex[0:-lag, :]       #Lag matrix accordingly 
+    X_ex      = sm.add_constant(X_ex) #add constant
+
+    reg       = sm.OLS(y, X_ex).fit(cov_type = "HAC", cov_kwds = {'maxlags':0})
+    coefs_ex     = np.round(reg.params*100, decimals = 4) #Multiply coefs by 100 to get in bps format
+    tvals_ex     = np.round(reg.tvalues, decimals = 4)
+    pvals_ex     = np.round(reg.pvalues, decimals = 4)
+    r_squared_ex = np.round(reg.rsquared, decimals = 4)
+         
+       
+    ### Result Print
+    legend_ex = np.array(['$\Gamma^{MM}_{t - ' + str(lag) + '}$', " ", '$\Gamma^{MM}_{t - ' + str(lag) + ', tot_-}$', " ", '$IV_{t-1}$', " ", 'Intercept', " ", '$R^2$' ])
+    
+    sign_test_ex = []
+    for pval in pvals_ex:
+        if pval < 0.01:
+            sign_test_ex.append("***")
+        elif pval < 0.05:
+            sign_test_ex.append("**")
+        elif pval < 0.1:
+            sign_test_ex.append("*")
+        else:
+            sign_test_ex.append("")
+                
+    results_ex = np.array([ str(coefs_ex[1]) + sign_test_ex[1], "(" + str(tvals_ex[1]) + ")", \
+                         str(coefs_ex[2]) + sign_test_ex[2], "(" + str(tvals_ex[2]) + ")", \
+                         str(coefs_ex[3]) + sign_test_ex[3], "(" + str(tvals_ex[3]) + ")", \
+                         str(coefs_ex[0]) + sign_test_ex[0], "(" + str(tvals_ex[0]) + ")", r_squared_ex])        
+    
+    resultsDf_ex = pd.DataFrame()
+    if j == 0:
+        resultsDf_ex["Lag = " + str(lag) + " day"] = legend_ex
+        resultsDf_ex[ticker] = results_ex
+        allresDf_ex = resultsDf_ex
+    else:
+        resultsDf_ex[ticker] = results_ex
+     
+    if j > 0:
+        allresDf_ex = pd.concat((allresDf_ex, resultsDf_ex), axis = 1)
+
+
+ 
+
+
+
 print(allresDf.to_latex(index=False, escape = False)) 
+print(allresDf_ex.to_latex(index=False, escape = False)) 
 
 

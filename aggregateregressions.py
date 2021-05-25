@@ -35,6 +35,7 @@ volIndexTicker        = ["VIX Index", "VIX Index", "VXN Index", "VXN Index", "RV
 
 IndexTickers = ["SPX", "NDX", "RUT"]
 ETFTickers   = ["SPY", "QQQ", "IWM"]
+volIndexTickers = ["VIX Index", "VXN Index", "RVX Index"]
 ETFMultipliers = [10, 40, 10]
 
 IsEquityIndex        = [True, False, True, False, True, False, False]
@@ -47,8 +48,16 @@ prefColor             = '#0504aa'
 ##########################################################################################
 
 
-#Load Data
-
+def computeRfDaily(data):
+        dates            = data["Dates"].to_numpy()
+        dates4fig        = pd.to_datetime(dates, format = '%Y%m%d')
+        daycount         = bt.dayCount(dates4fig)
+        
+        Rf               = data["LIBOR"].to_numpy() / 100
+        RfDaily          = np.zeros((np.size(Rf, 0), ))
+        RfDaily[1:]      = Rf[0:-1] * daycount[1:]/360 
+        return RfDaily
+    
 #Load Data
 AggregateData = []
 for ticker in UnderlyingTicker:
@@ -56,32 +65,133 @@ for ticker in UnderlyingTicker:
     AggregateData.append(data)
 
 
-AggregateGammaList = []
-IndexGammaList = []
-ETFGammaList = []
+AggregateGammaList       = []
+AggregateGammaListScaled = []
+IndexGammaList           = []
+ETFGammaList             = []
+XsReturnsList            = []
+VolIndexList             = []
 for i in np.arange(0, len(IndexTickers)):
-   
     #Store index and ETF data separately for simplicity
     indexticker = IndexTickers[i]
     etfticker   = ETFTickers[i]
+    volindexticker = volIndexTickers[i]
     etfmultiplier = ETFMultipliers[i]
     
     IndexData   = pd.read_csv(loadloc + indexticker + "AggregateData.csv")
     ETFData     = pd.read_csv(loadloc + etfticker + "AggregateData.csv")
-   
+    
+    #Store Vol Index
+    volIndex = ETFData[volindexticker].to_numpy()
+    volIndex = volIndex[np.isfinite(volIndex)]
+    VolIndexList.append(volIndex)
+    VolIndexList.append(volIndex)
+    
     #Compute aggregata net gamma 
     IndexGamma  = IndexData["netGamma"].to_numpy()
     ETFGamma    = ETFData["netGamma"].to_numpy()
-    ETFGamma = ETFGamma / etfmultiplier**2
+    ETFGamma    = ETFGamma / etfmultiplier**2
+    MarketCap   = IndexData["Market Cap"].to_numpy()
     
-    AggregateGamma = IndexGamma[-len(ETFGamma):] + ETFGamma
-    IndexGamma     = IndexGamma[-len(ETFGamma):]
+    if len(volIndex) < len(ETFGamma): #trim to vol index
+        trim = len(volIndex)
+    else:
+        trim = len(ETFGamma)
+    
+    AggregateGamma = IndexGamma[-trim:] + ETFGamma[-trim:]
+    IndexGamma     = IndexGamma[-trim:]
+    MarketCap      = MarketCap[-trim:]
+    AggregateGammaScaled = AggregateGamma / MarketCap
     
     AggregateGammaList.append(AggregateGamma)
     AggregateGammaList.append(AggregateGamma)
+    AggregateGammaListScaled.append(AggregateGammaScaled)
+    AggregateGammaListScaled.append(AggregateGammaScaled)
+    #IndexGammaList.append(IndexGamma)
+    #ETFGammaList.append(ETFGamma)
     
-    IndexGammaList.append(IndexGamma)
-    ETFGammaList.append(ETFGamma)
+    #Compute Excess Returns
+    IndexPrices = IndexData["TR Index"].to_numpy()
+    ETFPrices   = ETFData[etfticker].to_numpy()
+    RfDaily     = computeRfDaily(ETFData) 
+    RfDaily     = RfDaily[-trim:]
+    RfDaily[0]  = 0
+    
+    IndexReturns    = bt.computeReturns(IndexPrices)
+    IndexReturns    = IndexReturns[-trim:] #trim
+    IndexReturns[0] = 0
+    
+    ETFReturns    = bt.computeReturns(ETFPrices)
+    ETFReturns    = ETFReturns[-trim:]
+    ETFReturns[0] = 0
+    
+    XsReturnsList.append(IndexReturns - RfDaily)
+    XsReturnsList.append(ETFReturns - RfDaily)
+    
+
+    
+#Run regressions
+lag = 1
+for i in np.arange(0, len(XsReturnsList)):
+    ticker = UnderlyingTicker[i]
+    aggGammaScaled  = AggregateGammaListScaled[i] #grab gamma
+    xsret           = XsReturnsList[i]            #grab returns
+    IV              = VolIndexList[i]             #grab vol
+
+    X = np.concatenate((aggGammaScaled.reshape(-1,1), IV.reshape(-1,1)), axis = 1)
+                       
+    y      = np.abs(xsret[lag:])
+    nObs   = len(y)
+   
+    X      = X[0:-lag, :]       #Lag matrix accordingly 
+    X      = sm.add_constant(X) #add constant
+
+    reg       = sm.OLS(y, X).fit(cov_type = "HAC", cov_kwds = {'maxlags':0})
+    coefs     = np.round(reg.params*100, decimals = 4) #Multiply coefs by 100 to get in bps format
+    tvals     = np.round(reg.tvalues, decimals = 4)
+    pvals     = np.round(reg.pvalues, decimals = 4)
+    r_squared = np.round(reg.rsquared, decimals = 4)
+        
+       
+    ### Result Print
+    legend = np.array(['$\Gamma^{MM}_{t - ' + str(lag) + ', Agg}$', " ", '$IV_{t-1}$', " ", 'Intercept', " ", '$R^2$' ])
+    
+    sign_test = []
+    for pval in pvals:
+        if pval < 0.01:
+            sign_test.append("***")
+        elif pval < 0.05:
+            sign_test.append("**")
+        elif pval < 0.1:
+            sign_test.append("*")
+        else:
+            sign_test.append("")
+                
+    results = np.array([ str(coefs[1]) + sign_test[1], "(" + str(tvals[1]) + ")", \
+                         str(coefs[2]) + sign_test[2], "(" + str(tvals[2]) + ")", \
+                         str(coefs[0]) + sign_test[0], "(" + str(tvals[0]) + ")", r_squared])        
+    
+    resultsDf = pd.DataFrame()
+    if i == 0:
+        resultsDf["Lag = " + str(lag) + " day"] = legend
+        resultsDf[ticker] = results
+        allresDf = resultsDf
+    else:
+        resultsDf[ticker] = results
+     
+    if i > 0:
+        allresDf = pd.concat((allresDf, resultsDf), axis = 1)
+
+
+print(allresDf.to_latex(index=False, escape = False)) 
+
+
+###### ignore rest ####################
+######################################
+
+
+sys.exit()
+
 
 
 #Compute returns and adjusted gamma
@@ -94,45 +204,24 @@ for i in np.arange(0, nAssets):
     eqIndexFlag  = IsEquityIndex[i]
     rf           = data["LIBOR"].to_numpy()
     
-    def computeRfDaily(data):
-        dates            = data["Dates"].to_numpy()
-        dates4fig        = pd.to_datetime(dates, format = '%Y%m%d')
-        daycount         = bt.dayCount(dates4fig)
-        
-        Rf               = data["LIBOR"].to_numpy() / 100
-        RfDaily          = np.zeros((np.size(Rf, 0), ))
-        RfDaily[1:]      = Rf[0:-1] * daycount[1:]/360 
-        return RfDaily
-    
-    if ticker  != "VIX":
-        #Use Total Return Index for index, and normal price for ETF
-        if eqIndexFlag == True:
-            price = data["TR Index"].to_numpy()   
-        else:
-            price    = data[ticker].to_numpy()
-           
-        rf       = computeRfDaily(data)    
-        #Compute returns 
-        ret   = price[1:] / price[0:-1] - 1 
-        ret   = np.concatenate((np.zeros((1, )), ret), axis = 0)
-        xsret = ret - rf
-        
-        #Store
-        TotalReturns.append(ret)
-        XsReturns.append(xsret)
 
-    #Use futures for VIX Returns
+    #Use Total Return Index for index, and normal price for ETF
+    if eqIndexFlag == True:
+        price = data["TR Index"].to_numpy()   
     else:
-       frontPrices    = data["frontPrices"].to_numpy()
-       rf = computeRfDaily(data)
+        price    = data[ticker].to_numpy()
        
-       frontXsReturns = frontPrices[1:] / frontPrices[0:-1] - 1
-       frontXsReturns =  np.concatenate((np.zeros((1, )), frontXsReturns), axis = 0)
-       frontTotalReturns = frontXsReturns + rf
-       
-       #Store
-       TotalReturns.append(frontTotalReturns)
-       XsReturns.append(frontXsReturns)
+    rf       = computeRfDaily(data)    
+    #Compute returns 
+    ret   = price[1:] / price[0:-1] - 1 
+    ret   = np.concatenate((np.zeros((1, )), ret), axis = 0)
+    xsret = ret - rf
+    
+    #Store
+    TotalReturns.append(ret)
+    XsReturns.append(xsret)
+
+   
     
      
 def plotResiduals(residuals, lag = None, ticker = None, color = '#0504aa', histtype = 'stepfilled'):
@@ -188,7 +277,6 @@ for j in np.arange(0, len(UnderlyingTicker)):
        marketCap      = data["Market Cap"].to_numpy()
     
         
-    
     #Compute Independent Variable Time Series
     #Grab necessary data
     netGamma       = aggGamma #set netGamma equal to aggGamma to be able to reuse code
@@ -205,14 +293,8 @@ for j in np.arange(0, len(UnderlyingTicker)):
         ILLIQ     = ILLIQ[-len(aggGamma):]
         MAdollarVolume = MAdollarVolume[-len(aggGamma):]
         volIndex  = volIndex[-len(aggGamma):]
-  
-    #plt.plot(ILLIQ)
-    #plt.plot(np.ones((len(ILLIQ),))*ILLIQMedian, "--r")
-    #plt.plot(np.ones((len(ILLIQ),))*ILLIQMean, "--b")
-    
-    #Net Gamma Measures
-    netGamma_norm   = (netGamma - np.mean(netGamma)) / np.std(netGamma)
-    
+      
+
     #Use barbon measure for VIX
     
     netGamma_scaled = netGamma / marketCap
