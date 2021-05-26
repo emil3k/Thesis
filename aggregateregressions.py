@@ -71,6 +71,7 @@ IndexGammaList           = []
 ETFGammaList             = []
 XsReturnsList            = []
 VolIndexList             = []
+
 for i in np.arange(0, len(IndexTickers)):
     #Store index and ETF data separately for simplicity
     indexticker = IndexTickers[i]
