@@ -1,5 +1,11 @@
 # -*- coding: utf-8 -*-
 """
+Created on Fri May 21 16:35:21 2021
+
+@author: ekblo
+"""
+# -*- coding: utf-8 -*-
+"""
 Created on Sun May  9 13:00:15 2021
 
 @author: ekblo
@@ -35,10 +41,11 @@ import sys
 ### SET IMPORT PARAMS ####################################################################
 UnderlyingBBGTicker   = "SPX Index"
 UnderlyingTicker      = "SPX"
-loadlocAgg            = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
-loadlocOpt            = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/CleanData/"
-loadlocSpot           = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/SpotData/SpotData.xlsx"
-prefColor             = '#0504aa'
+loadlocAgg            = "../Data/AggregateData/"
+loadlocOpt            = "../Data/CleanData/"
+loadlocSpot           = "../Data/SpotData/SpotData.xlsx"
+prefColor             = '#0504aa' 
+include_tc            = False #trade at mid or bid-ask prices
 ##########################################################################################
 
 ## Load Data
@@ -163,8 +170,7 @@ daysToMatFrontTrackerLong = np.zeros((nDays,))
 daysToMatFrontTrackerShort = np.zeros((nDays,))
 turnoverLong = np.zeros((nDays,))
 
-#Include TC or no 
-include_tc = False
+
 
 if include_tc == False:
     bid_ind = 15 #trade on mid-price
@@ -268,7 +274,7 @@ for i in np.arange(0, nDays - lag - 1):
          
                    #Check if Call Options disappear the next day
                    if len(nextDayCall) > 0: #If they exist, compute returns     
-                       callReturns[i + lag + 1] = nextDayCall[0, 15] / currentDayCall[0, 15] - 1
+                       callReturns[i + lag + 1] = nextDayCall[0, bid_ind] / currentDayCall[0, ask_ind] - 1
                         
                        #Store information on calls traded
                        currentDayCallsTraded[i + lag, :]   = currentDayCall.reshape(22,)
@@ -287,7 +293,7 @@ for i in np.arange(0, nDays - lag - 1):
                    
                    #Check if Put Options disappear the next day
                    if len(nextDayPut) > 0: #If they exist, compute returns
-                       putReturns[i + lag + 1]  = nextDayPut[0, 15] / currentDayPut[0, 15] - 1
+                       putReturns[i + lag + 1]  = nextDayPut[0, bid_ind] / currentDayPut[0, ask_ind] - 1
                             
                        #Store information on puts traded
                        currentDayPutsTraded[i + lag, :]     = currentDayPut.reshape(22,)
@@ -328,7 +334,7 @@ for i in np.arange(0, nDays - lag - 1):
             
                    #Check if call options disappear
                    if len(nextDayCall) > 0: #If they exist, compute returns 
-                       callReturns[i + lag + 1] = nextDayCall[0, 15] / currentDayCall[0, 15] - 1
+                       callReturns[i + lag + 1] = nextDayCall[0, bid_ind] / currentDayCall[0, ask_ind] - 1
                        
                        #Store information on calls traded
                        currentDayCallsTraded[i + lag, :]   = currentDayCall.reshape(22,)
@@ -345,7 +351,7 @@ for i in np.arange(0, nDays - lag - 1):
                     
                    #Check if Put options disappear
                    if len(nextDayPut) > 0: #If they exist, compute returns
-                       putReturns[i + lag + 1]  = nextDayPut[0, 15] / currentDayPut[0, 15] - 1
+                       putReturns[i + lag + 1]  = nextDayPut[0, bid_ind] / currentDayPut[0, ask_ind] - 1
                        
                        #Store information on puts traded
                        currentDayPutsTraded[i + lag , :]    = currentDayPut.reshape(22,)
@@ -393,7 +399,7 @@ for i in np.arange(0, nDays - lag - 1):
              
                     #Call leg returns
                     if len(nextDayCall) > 0:    
-                        callReturns[i + lag + 1] = nextDayCall[0, 15] / currentDayCall[0, 15] - 1
+                        callReturns[i + lag + 1] = nextDayCall[0, bid_ind] / currentDayCall[0, ask_ind] - 1
                         
                         #Store information on calls traded
                         currentDayCallsTraded[i + lag, :]   = currentDayCall.reshape(22,)
@@ -409,7 +415,7 @@ for i in np.arange(0, nDays - lag - 1):
                         frontPos   = 0 #Signal trade is not in front    
                     #Put leg returns
                     if len(nextDayPut) > 0:
-                        putReturns[i + lag + 1]  = nextDayPut[0, 15] / currentDayPut[0, 15] - 1
+                        putReturns[i + lag + 1]  = nextDayPut[0, bid_ind] / currentDayPut[0, ask_ind] - 1
                         
                         #Store information on puts traded
                         currentDayPutsTraded[i + lag , :]    = currentDayPut.reshape(22,)
@@ -444,7 +450,7 @@ for i in np.arange(0, nDays - lag - 1):
                    
                     #Call leg returns
                     if len(nextDayCall) > 0:    
-                        callReturns[i + lag + 1] = nextDayCall[0, 15] / currentDayCall[0, 15] - 1
+                        callReturns[i + lag + 1] = nextDayCall[0, bid_ind] / currentDayCall[0, ask_ind] - 1
                         
                         #Store information on calls traded
                         currentDayCallsTraded[i + lag, :]  = currentDayCall.reshape(22,)
@@ -460,7 +466,7 @@ for i in np.arange(0, nDays - lag - 1):
                     
                     #Put leg returns
                     if len(nextDayPut) > 0:
-                        putReturns[i + lag + 1]  = nextDayPut[0, 15] / currentDayPut[0, 15] - 1
+                        putReturns[i + lag + 1]  = nextDayPut[0, bid_ind] / currentDayPut[0, ask_ind] - 1
                         
                         #Store information on puts traded
                         currentDayPutsTraded[i + lag, :] = currentDayPut.reshape(22,)
@@ -496,7 +502,7 @@ for i in np.arange(0, nDays - lag - 1):
                
                 #Call leg returns
                 if len(nextDayCall) > 0:    
-                    callReturns[i + lag + 1] = nextDayCall[0, 15] / currentDayCall[0, 15] - 1
+                    callReturns[i + lag + 1] = nextDayCall[0, bid_ind] / currentDayCall[0, ask_ind] - 1
                     
                     #Store information on calls traded
                     currentDayCallsTraded[i + lag, :]  = currentDayCall.reshape(22,)
@@ -512,7 +518,7 @@ for i in np.arange(0, nDays - lag - 1):
                 
                 #Put leg returns
                 if len(nextDayPut) > 0:
-                    putReturns[i + lag + 1]  = nextDayPut[0, 15] / currentDayPut[0, 15] - 1
+                    putReturns[i + lag + 1]  = nextDayPut[0, bid_ind] / currentDayPut[0, ask_ind] - 1
                     
                     #Store information on puts traded
                     currentDayPutsTraded[i + lag, :] = currentDayPut.reshape(22,)
@@ -667,7 +673,7 @@ for i in np.arange(0, nDays - lag - 1):
          
                    #Check if Call Options disappear the next day
                    if len(nextDayCall) > 0: #If they exist, compute returns     
-                       callReturns[i + lag + 1] = nextDayCall[0, 15] / currentDayCall[0, 15] - 1
+                       callReturns[i + lag + 1] = 1 - nextDayCall[0, ask_ind] / currentDayCall[0, bid_ind]
                         
                        #Store information on calls traded
                        # currentDayCallsTraded[i + lag, :]   = currentDayCall.reshape(22,)
@@ -684,7 +690,7 @@ for i in np.arange(0, nDays - lag - 1):
                        frontPos   = 0 #Signal trade is not in front    
                     #Check if Put Options disappear the next day
                    if len(nextDayPut) > 0: #If they exist, compute returns
-                       putReturns[i + lag + 1]  = nextDayPut[0, 15] / currentDayPut[0, 15] - 1
+                       putReturns[i + lag + 1]  = 1 - nextDayPut[0, ask_ind] / currentDayPut[0, bid_ind]
                             
                        #Store information on puts traded
                        # currentDayPutsTraded[i + lag, :]     = currentDayPut.reshape(22,)
@@ -726,7 +732,7 @@ for i in np.arange(0, nDays - lag - 1):
             
                    #Check if call options disappear
                    if len(nextDayCall) > 0: #If they exist, compute returns 
-                       callReturns[i + lag + 1] = nextDayCall[0, 15] / currentDayCall[0, 15] - 1
+                       callReturns[i + lag + 1] = 1 - nextDayCall[0, ask_ind] / currentDayCall[0, bid_ind]
                        
                        #Store information on calls traded
                        # currentDayCallsTraded[i + lag, :]   = currentDayCall.reshape(22,)
@@ -743,7 +749,7 @@ for i in np.arange(0, nDays - lag - 1):
                     
                    #Check if Put options disappear
                    if len(nextDayPut) > 0: #If they exist, compute returns
-                       putReturns[i + lag + 1]  = nextDayPut[0, 15] / currentDayPut[0, 15] - 1
+                       putReturns[i + lag + 1]  = 1 - nextDayPut[0, ask_ind] / currentDayPut[0, bid_ind]
                        
                        #Store information on puts traded
                        # currentDayPutsTraded[i + lag , :]    = currentDayPut.reshape(22,)
@@ -791,7 +797,7 @@ for i in np.arange(0, nDays - lag - 1):
              
                     #Call leg returns
                     if len(nextDayCall) > 0:    
-                        callReturns[i + lag + 1] = nextDayCall[0, 15] / currentDayCall[0, 15] - 1
+                        callReturns[i + lag + 1] = 1 - nextDayCall[0, ask_ind] / currentDayCall[0, bid_ind]
                         
                         #Store information on calls traded
                         # currentDayCallsTraded[i + lag, :]   = currentDayCall.reshape(22,)
@@ -807,7 +813,7 @@ for i in np.arange(0, nDays - lag - 1):
                         frontPos   = 0 #Signal trade is not in front    
                     #Put leg returns
                     if len(nextDayPut) > 0:
-                        putReturns[i + lag + 1]  = nextDayPut[0, 15] / currentDayPut[0, 15] - 1
+                        putReturns[i + lag + 1]  = 1 - nextDayPut[0, ask_ind] / currentDayPut[0, bid_ind]
                         
                         #Store information on puts traded
                         # currentDayPutsTraded[i + lag , :]    = currentDayPut.reshape(22,)
@@ -842,7 +848,7 @@ for i in np.arange(0, nDays - lag - 1):
                    
                     #Call leg returns
                     if len(nextDayCall) > 0:    
-                        callReturns[i + lag + 1] = nextDayCall[0, 15] / currentDayCall[0, 15] - 1
+                        callReturns[i + lag + 1] = 1 - nextDayCall[0, ask_ind] / currentDayCall[0, bid_ind]
                         
                         #Store information on calls traded
                         # currentDayCallsTraded[i + lag, :]  = currentDayCall.reshape(22,)
@@ -858,7 +864,7 @@ for i in np.arange(0, nDays - lag - 1):
                     
                     #Put leg returns
                     if len(nextDayPut) > 0:
-                        putReturns[i + lag + 1]  = nextDayPut[0, 15] / currentDayPut[0, 15] - 1
+                        putReturns[i + lag + 1]  = 1 - nextDayPut[0, ask_ind] / currentDayPut[0, bid_ind]
                         
                         #Store information on puts traded
                         # currentDayPutsTraded[i + lag, :] = currentDayPut.reshape(22,)
@@ -894,7 +900,7 @@ for i in np.arange(0, nDays - lag - 1):
                
                 #Call leg returns
                 if len(nextDayCall) > 0:    
-                    callReturns[i + lag + 1] = nextDayCall[0, 15] / currentDayCall[0, 15] - 1
+                    callReturns[i + lag + 1] = 1 - nextDayCall[0, ask_ind] / currentDayCall[0, bid_ind]
                     
                     #Store information on calls traded
                     # currentDayCallsTraded[i + lag, :]  = currentDayCall.reshape(22,)
@@ -910,7 +916,7 @@ for i in np.arange(0, nDays - lag - 1):
                 
                 #Put leg returns
                 if len(nextDayPut) > 0:
-                    putReturns[i + lag + 1]  = nextDayPut[0, 15] / currentDayPut[0, 15] - 1
+                    putReturns[i + lag + 1]  = 1 - nextDayPut[0, ask_ind] / currentDayPut[0, bid_ind]
                     
                     #Store information on puts traded
                     # currentDayPutsTraded[i + lag, :] = currentDayPut.reshape(22,)
@@ -939,13 +945,12 @@ for i in np.arange(0, nDays - lag - 1):
 
     
 #Straddle returns        
-straddleReturnsShort = (-1)*(callReturns + putReturns)
+straddleReturnsShort = (callReturns + putReturns)
 uncondStraddleReturnsShort = (-1)*(uncondCallReturns + uncondPutReturns)
 
 totalTurnover = np.abs(turnoverLong) + np.abs(turnoverShort)
 
 LSStraddleReturns = straddleReturnsLong + straddleReturnsShort
-
 
 
 #VIX Returns
@@ -969,15 +974,29 @@ uncondPutReturnsScaled  = uncondPutReturns*scale
 uncondStraddleReturnsShortScaled = uncondStraddleReturnsShort*scale
 uncondStraddleReturnsLongScaled = uncondStraddleReturnsLong*scale
 
+
+#Gamma Timed Uncond. Strategy
+gammaSignalLong  = 1*(netGamma < 0)
+gammaSignalShort = 1*(netGamma > 0)
+
+gtStraddleLongXsReturns = gammaSignalLong[0:-1] * uncondStraddleReturnsLongScaled[1:]
+gtStraddleShortXsReturns = gammaSignalShort[0:-1] * uncondStraddleReturnsShortScaled[1:]
+
+
+
 #OverlayReturns
-longStraddleOverlay = (1 - scale) * underlyingXsReturns + straddleReturnsLongScaled
-putOverlay = (1 - scale)* underlyingXsReturns + scale*longPutReturns
+longStraddleOverlay1 = (1 - 0.01) * underlyingXsReturns + straddleReturnsLong*0.01
+longStraddleOverlay2 = (1 - 0.02) * underlyingXsReturns + straddleReturnsLong*0.02
+longStraddleOverlay3 = (1 - 0.03) * underlyingXsReturns + straddleReturnsLong*0.03
+longStraddleOverlay4 = (1 - 0.04) * underlyingXsReturns + straddleReturnsLong*0.04
+
+
 
 #Transaction cost
 c = 0.01
-straddleReturnsLongTC  = straddleReturnsLongScaled - np.abs(turnoverLong)*c*scale
+straddleReturnsLongTC  = straddleReturnsLongScaled  - np.abs(turnoverLong)*c*scale
 straddleReturnsShortTC = straddleReturnsShortScaled - np.abs(turnoverShort)*c*scale
-straddleReturnsLSTC    = straddleReturnsLSScaled - totalTurnover*c*scale
+straddleReturnsLSTC    = straddleReturnsLSScaled    - totalTurnover*c*scale
 
 #Cumulative Returns
 cumCallReturns          =  np.cumprod(1 + callReturnsScaled)
@@ -986,10 +1005,16 @@ cumStraddleReturnsLong  =  np.cumprod(1 + straddleReturnsLongScaled)
 cumStraddleReturnsShort =  np.cumprod(1 + straddleReturnsShortScaled)
 cumStraddleReturnsLS    =  np.cumprod(1 + straddleReturnsLSScaled)
 
-#Overlay
+#Overlay Strategies
 cumUnderlying           = np.cumprod(1 + underlyingXsReturns)
-cumLongStraddleOverlay  = np.cumprod(1 + longStraddleOverlay)
-cumPutOverlay           = np.cumprod(1 + putOverlay)
+cumLongStraddleOverlay1  = np.cumprod(1 + longStraddleOverlay1)
+cumLongStraddleOverlay2  = np.cumprod(1 + longStraddleOverlay2)
+cumLongStraddleOverlay3  = np.cumprod(1 + longStraddleOverlay3)
+cumLongStraddleOverlay4  = np.cumprod(1 + longStraddleOverlay4)
+
+
+
+
 
 #Transaction Costs
 cumStraddleReturnsLongTC  =  np.cumprod(1 + straddleReturnsLongTC)
@@ -997,17 +1022,33 @@ cumStraddleReturnsShortTC =  np.cumprod(1 + straddleReturnsShortTC)
 cumStraddleReturnsLSTC    =  np.cumprod(1 + straddleReturnsLSTC)
 
 
-
-
 #cumOverlayReturns  = np.cumprod(1 + overlayReturns)
 cumUnderlyingReturns     = np.cumprod(1 + underlyingXsReturns)
 cumUncondCallReturns     = np.cumprod(1 + uncondCallReturnsScaled)
 cumUncondPutReturns      = np.cumprod(1 + uncondPutReturnsScaled)
 cumUncondStraddleReturnsShort = np.cumprod(1 + uncondStraddleReturnsShortScaled)
-cumUncondStraddleReturnsLong = np.cumprod(1 + uncondStraddleReturnsLongScaled)
+cumUncondStraddleReturnsLong  = np.cumprod(1 + uncondStraddleReturnsLongScaled)
 
 
 dates4fig = pd.to_datetime(AggregateDates, format = '%Y%m%d')
+
+gtLongCum   = np.cumprod(1 + gtStraddleLongXsReturns)
+gtShortCum  = np.cumprod(1 + gtStraddleShortXsReturns)
+uncLongCum  = np.cumprod(1 + uncondStraddleReturnsLongScaled[1:])
+uncShortCum = np.cumprod(1 + uncondStraddleReturnsShortScaled[1:])
+
+
+#Gamma-timed vs unconditional straddle strategies
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize = (10, 3))
+fig.suptitle('Gamma-Timing vs. Unconditional Straddle Strategies')
+ax1.plot(dates4fig[1:], gtLongCum, color = prefColor, alpha = 0.8, label = "Long Straddle Gamma-Timed")
+ax1.plot(dates4fig[1:], uncLongCum,  color = "red", alpha = 0.8, label = "Long Straddle")
+ax1.legend()
+
+ax2.plot(dates4fig[1:], gtShortCum, color = prefColor,     alpha = 0.8, label = "Short Straddle Gamma-Timed")
+ax2.plot(dates4fig[1:], uncShortCum,  color = "red", alpha = 0.8, label = "Short Straddle")
+ax2.legend()
+
 
 
 #Plot Equity Lines
@@ -1015,9 +1056,13 @@ plt.figure()
 plt.plot(dates4fig, cumStraddleReturnsLong,  color = prefColor, alpha = 0.8, label = "Long Only Gamma-Timed")
 plt.plot(dates4fig, cumStraddleReturnsShort, color = "red",     alpha = 0.8, label = "Short Only Gamma-Timed")
 plt.plot(dates4fig, cumStraddleReturnsLS,    color = "black",   alpha = 1.0, label = "Long-Short Gamma-Timed")
-plt.title("Gamma Timed Index Straddle Strategies, " + UnderlyingTicker)
+plt.title("Gamma Timed Index Straddle Strategies w/ TC, " + UnderlyingTicker)
 plt.ylabel("Cumulative Excess Returns")
 plt.legend()
+
+
+
+
 
 #Plot Equity Lines
 plt.figure()
@@ -1061,27 +1106,30 @@ ax2.plot(dates4fig, cumStraddleReturnsShort, color = prefColor,     alpha = 0.8,
 ax2.plot(dates4fig, cumUncondStraddleReturnsShort,  color = "red", alpha = 0.8, label = "Short Straddle")
 ax2.legend()
 
-#Plot Equity Lines
+#Overlay Strategies
 plt.figure()
-plt.plot(dates4fig, cumLongStraddleOverlay,  color = prefColor, alpha = 0.8, label = "Straddle Overlay Gamma-Timed")
-plt.plot(dates4fig, cumUnderlying, color = "red",     alpha = 0.8, label = "S&P 500")
-plt.plot(dates4fig, cumPutOverlay, color = "black",     alpha = 0.8, label = "Put Overlay Gamma-Timed")
+plt.plot(dates4fig, cumLongStraddleOverlay1,  color = prefColor, alpha = 0.8, label = "Overlay, weight = 1%")
+plt.plot(dates4fig, cumLongStraddleOverlay2,  color = "silver", alpha = 0.8, label = "Overlay, weight = 2%")
+plt.plot(dates4fig, cumLongStraddleOverlay3,  color = "black", alpha = 0.8, label = "Overlay, weight = 3%")
+plt.plot(dates4fig, cumLongStraddleOverlay4,  color = "skyblue", alpha = 0.8, label = "Overlay, weight = 4%")
+plt.plot(dates4fig, cumUnderlying, color = "red",     alpha = 0.8, label = "Buy-and-hold")
 plt.title("Gamma Timed Overlay Strategy, " + UnderlyingTicker)
 plt.ylabel("Cumulative Excess Returns")
 plt.legend()
 
 
-#Investigate errors
-
-checkDate = disapearingOptionFront_un[0]
-checkDateOptions = OptionDataArr[(OptionDates == checkDate[0]), :]
 
 #Average Returns
 StrategyXsReturns = np.concatenate((straddleReturnsLongScaled.reshape(-1,1), straddleReturnsShortScaled.reshape(-1,1), straddleReturnsLSScaled.reshape(-1,1), \
                                   uncondStraddleReturnsLongScaled.reshape(-1,1), uncondStraddleReturnsShortScaled.reshape(-1,1)), axis = 1)
 
+    
+StrategyXsReturns = np.concatenate((gtStraddleLongXsReturns.reshape(-1,1), gtStraddleShortXsReturns.reshape(-1,1), \
+                                  uncondStraddleReturnsLongScaled[1:].reshape(-1,1), uncondStraddleReturnsShortScaled[1:].reshape(-1,1)), axis = 1)
 AverageDailyXsReturns = np.prod(1 + StrategyXsReturns, axis = 0)**(1 / len(StrategyXsReturns)) - 1
 AverageAnnualizedXsReturns = (1 + AverageDailyXsReturns)**252 - 1
+print(AverageAnnualizedXsReturns)
+
 
 #Statistical tests
 ttest_ind(straddleReturnsLongScaled, uncondStraddleReturnsLongScaled, usevar = "unequal")
@@ -1093,24 +1141,42 @@ uncondStraddleReturnsLong  = uncondStraddleReturnsLongScaled + RfDaily
 uncondStraddleReturnsShort = uncondStraddleReturnsShortScaled + RfDaily
 
 
+#Probabilistic Sharpe Ratio
+[PSR_long, SR_long, SR2_long] = bt.PSR(gtStraddleLongXsReturns + RfDaily[1:] , uncondStraddleReturnsLongScaled[1:] + RfDaily[1:], RfDaily[1:], AnnualizationFactor = 252)
+[PSR_short, SR_short, SR2_short] = bt.PSR(gtStraddleShortXsReturns + RfDaily[1:], uncondStraddleReturnsShortScaled[1:] + RfDaily[1:], RfDaily[1:], AnnualizationFactor = 252)
 
-[PSR_long, SR, SR2] = bt.PSR(straddleTotalReturnsLong , uncondStraddleReturnsLong, RfDaily, AnnualizationFactor = 252)
-[PSR_short, SR, SR2] = bt.PSR(straddleTotalReturnsShort, uncondStraddleReturnsShort, RfDaily, AnnualizationFactor = 252)
 print(PSR_long)
+print(SR_long)
+print(SR2_long)
+print('short:')
 print(PSR_short)
+print(SR_short)
+print(SR2_short)
+
 
 
 #Compute performance
-longPerformance      = bt.ComputePerformance(straddleReturnsLongScaled, RfDaily, 0, 252)
-shortPerformance     = bt.ComputePerformance(straddleReturnsShortScaled, RfDaily, 0, 252)
-longShortPerformance = bt.ComputePerformance(straddleReturnsLSScaled, RfDaily, 0, 252)
-longUncondPerformance = bt.ComputePerformance(uncondStraddleReturnsLongScaled, RfDaily, 0, 252)
-shortUncondPerformance = bt.ComputePerformance(uncondStraddleReturnsShortScaled, RfDaily, 0, 252)
+longPerformance        = bt.ComputePerformance(straddleReturnsLongScaled, RfDaily, 0, 252)
+shortPerformance       = bt.ComputePerformance(straddleReturnsShortScaled, RfDaily, 0, 252)
+longShortPerformance   = bt.ComputePerformance(straddleReturnsLSScaled, RfDaily, 0, 252)
+
+#performance Gamma-timed (new)
+gtLongPerf             = bt.ComputePerformance(gtStraddleLongXsReturns, RfDaily[1:], 0, 252)
+gtShortPerf            = bt.ComputePerformance(gtStraddleShortXsReturns, RfDaily[1:], 0, 252)
+longUncondPerformance  = bt.ComputePerformance(uncondStraddleReturnsLongScaled[1:], RfDaily[1:], 0, 252)
+shortUncondPerformance = bt.ComputePerformance(uncondStraddleReturnsShortScaled[1:], RfDaily[1:], 0, 252)
 
 #TC performance
 longPerformanceTC      = bt.ComputePerformance(straddleReturnsLongTC, RfDaily, 0, 252)
 shortPerformanceTC     = bt.ComputePerformance(straddleReturnsShortTC, RfDaily, 0, 252)
-longShortPerformanceTC = bt.ComputePerformance(straddleReturnsLSTC, RfDaily, 0, 25)
+longShortPerformanceTC = bt.ComputePerformance(straddleReturnsLSTC, RfDaily, 0, 252)
+
+#Overlay performance
+overlayPerf1 =  bt.ComputePerformance(longStraddleOverlay1, RfDaily, 0, 252)
+overlayPerf2 =  bt.ComputePerformance(longStraddleOverlay2, RfDaily, 0, 252)
+overlayPerf3 =  bt.ComputePerformance(longStraddleOverlay3, RfDaily, 0, 252)
+overlayPerf4 =  bt.ComputePerformance(longStraddleOverlay4, RfDaily, 0, 252)
+perfBuyNHold =  bt.ComputePerformance(underlyingXsReturns, RfDaily, 0, 252)
 
 
 #Construct Latex Table
@@ -1138,16 +1204,22 @@ perfList = [longPerformance, shortPerformance, longShortPerformance, longUncondP
 test     = constructPerformanceDf(perfList, colNames = colNames, to_latex = True)
 
 colNames = np.array(["Statistic", "Long-Only", "Short-Only", "Long-Short"])
-perfList = [longPerformanceTC, shortPerformanceTC, longShortPerformanceTC]
+perfList = [longPerformance, shortPerformance, longShortPerformance]
 test     = constructPerformanceDf(perfList, colNames = colNames, to_latex = True)
 
+colNames = np.array(["Straddle Strategies", "Long GTB", "Long Unc.", "Short GTB", "Short Unc.", "Long GT", "Short GT", "Long-Short GT"])
+perfList = [gtLongPerf, longUncondPerformance, gtShortPerf, shortUncondPerformance, longPerformance, shortPerformance, longShortPerformance]
+test     = constructPerformanceDf(perfList, colNames = colNames, to_latex = True)
+
+colNames = np.array(["Overlay Strategies", "w = 1\%", "w = 2\%", "w = 3\%", "w = 4\%", "Buy-n-Hold"])
+perfList = [overlayPerf1, overlayPerf2, overlayPerf3, overlayPerf4, perfBuyNHold]
+test     = constructPerformanceDf(perfList, colNames = colNames, to_latex = True)
 
 sys.exit()
 
 
 
-day = 19981012
-dayOptions = OptionDataArr[OptionDates == day, :]
+
 
 
 

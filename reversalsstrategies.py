@@ -23,7 +23,7 @@ UnderlyingAssetName   = ["SPX US Equity"]
 UnderlyingTicker      = ["SPX"]
 IsEquityIndex         = [True]
 
-loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
+loadloc               = "../Data/AggregateData/"
 prefColor             = '#0504aa'
 ##########################################################################################
 
@@ -268,6 +268,7 @@ for i in np.arange(0, nAssets):
     turnoverCombinedZscore = np.abs(combinedZscoreSignal[lookback + 1:] - combinedZscoreSignal[lookback:-1])
     
     
+    
     c = 0.0005 #one-way cost
     negnegXsReturnsTC = negnegXsReturns - turnoverNegNeg*c
     negRetXsReturnsTC = negRetXsReturns - turnoverNegRet*c
@@ -392,18 +393,22 @@ for i in np.arange(0, nAssets):
     
     #Daily and Zscore long w/ TC
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize = (10, 3))
-    fig.suptitle('Long Reversal Strategies w/ TC, ' + ticker)
+    fig.suptitle('Long Reversal Strategies w/ TC, c = ' + str(int(c*10000)) + "bps" )
     ax1.plot(dates4fig, negnegCum, linestyle = '-',  color = prefColor, alpha = 0.8, label = "Reversal Gamma-Timed")
     ax1.plot(dates4fig, negRetCum, linestyle = '-',  color = "red",     alpha = 0.8, label = "Reversal")   
     ax1.plot(dates4fig, negnegCumTC, linestyle = '--',  color = prefColor, alpha = 0.8, label = "Reversal Gamma-Timed w/ TC")
     ax1.plot(dates4fig, negRetCumTC, linestyle = '--',  color = "red",     alpha = 0.8, label = "Reversal w/ TC")
     ax1.legend(loc = 'upper left')
+    ax1.set_xlabel('Long Reversal')
     
     ax2.plot(dates4fig, combinedZscoreCum, linestyle = '-', color = prefColor, alpha = 0.8, label = "Z-score Gamma-Timed")
     ax2.plot(dates4fig, returnZscoreCum,  linestyle = '-', color = "red",     alpha = 0.8, label = "Z-score Reversal")
     ax2.plot(dates4fig, combinedZscoreCumTC, linestyle = '--', color = prefColor, alpha = 0.8, label = "Z-score Gamma-Timed w/ TC")
     ax2.plot(dates4fig, returnZscoreCumTC,  linestyle = '--', color = "red",     alpha = 0.8, label = "Z-score Reversal w/ TC")
+    ax2.set_xlabel('Z-Score Long Reversal')
     ax1.legend()
+    
+    
     
     
     plt.figure()

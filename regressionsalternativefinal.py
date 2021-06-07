@@ -1,5 +1,17 @@
 # -*- coding: utf-8 -*-
 """
+Created on Sat May 29 20:09:22 2021
+
+@author: ekblo
+"""
+# -*- coding: utf-8 -*-
+"""
+Created on Wed May 26 22:19:01 2021
+
+@author: ekblo
+"""
+# -*- coding: utf-8 -*-
+"""
 Created on Mon May 24 18:16:37 2021
 
 @author: ekblo
@@ -28,15 +40,16 @@ IsEquityIndex        = [True, False, True, False, True, False, False]
 #UnderlyingTicker      = ["SPX"]
 #IsEquityIndex         = [True]
 
-loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
+loadloc               = "../Data/AggregateData/"
 prefColor             = '#0504aa'
 ##########################################################################################
 
 #Load Data
 AggregateData = []
-netGammaDf         = pd.DataFrame()
+netGammaRawDf      = pd.DataFrame()
 netGammaScaledDf   = pd.DataFrame()
 netGammaAdjustedDf = pd.DataFrame()
+aggGammaDf         = pd.DataFrame()
 totalReturnsDf     = pd.DataFrame()
 xsReturnsDf        = pd.DataFrame()
 volIndexDf         = pd.DataFrame()
@@ -57,79 +70,66 @@ def computeRfDaily(data):
     return RfDaily
 
 
-for i in np.arange(0, len(UnderlyingTicker)):
-    #ticker       = UnderlyingTicker[i]
-    #mktcapticker = MarketCapTicker[i]
+for i in np.arange(0, len(IndexTicker)):
     
-    indexticker = IndexTicker[i]
-    etfticker = ETFTicker[i]
-    
+    #Grab tickers and multipliers
+    indexticker  = IndexTicker[i]
+    etfticker    = ETFTicker[i]
     M            = Multiplier[i]
-    #index_flag   = IsEquityIndex[i]
+    
+    #load data
     indexData = pd.read_csv(loadloc + indexticker + "AggregateData.csv")
     etfData   = pd.read_csv(loadloc + etfticker + "AggregateData.csv") 
     
-    #data          = pd.read_csv(loadloc + ticker + "AggregateData.csv")
-    #marketcapdata = pd.read_csv(loadloc + mktcapticker + "AggregateData.csv")
     
-    
+    #trimdata
     startDate = 20060101
     endDate   = 20191231
     
     #Trim to dates
-    data          = bt.trimToDates(data, data["Dates"], startDate, endDate)
-    marketcapdata = bt.trimToDates(marketcapdata, marketcapdata["Dates"], startDate, endDate)
+    indexData = bt.trimToDates(indexData, indexData["Dates"], startDate, endDate)
+    etfData   = bt.trimToDates(etfData,     etfData["Dates"], startDate, endDate)
     
     #Grab needed data
-    netGamma  = data["netGamma"].to_numpy()
-    marketCap = marketcapdata["Market Cap"].to_numpy()
+    netGammaIndex  = indexData["netGamma"].to_numpy()
+    netGammaETF    = etfData["netGamma"].to_numpy()
+    marketCap      = indexData["Market Cap"].to_numpy()
     
-    
-    if index_flag == True:
-        prices = data["TR Index"].to_numpy()
-    else:
-        prices = data[ticker].to_numpy()
-   
-    rfdaily = computeRfDaily(data)
+    indexPrices = indexData["TR Index"].to_numpy()
+    etfPrices   = etfData[etfticker].to_numpy()
+    rfDaily     = computeRfDaily(indexData)
     
     #Compute returns
-    totalReturns = bt.computeReturns(prices)
-    xsReturns    = totalReturns - rfdaily
+    totalReturnsIndex = bt.computeReturns(indexPrices)
+    totalReturnsETF   = bt.computeReturns(etfPrices)
+    xsReturnsIndex    = totalReturnsIndex - rfDaily
+    xsReturnsETF      = totalReturnsETF - rfDaily
+    
+    #Store returns
+    totalReturnsDf[indexticker] = totalReturnsIndex
+    totalReturnsDf[etfticker]   = totalReturnsETF
+    xsReturnsDf[indexticker]    = xsReturnsIndex
+    xsReturnsDf[etfticker]      = xsReturnsETF
+    
     
     #Store net gamma, net gamma scaled, and net gamma adjusted
-    netGammaDf[ticker]         = netGamma
-    netGammaScaledDf[ticker]   = netGamma / marketCap
-    netGammaAdjustedDf[ticker] = (netGamma / marketCap) / M**2
+    #Raw Gamma
+    netGammaRawDf[indexticker] = netGammaIndex
+    netGammaRawDf[etfticker]   = netGammaETF
+    #Scaled by market cap
+    netGammaScaledDf[indexticker]   = netGammaIndex / marketCap
+    netGammaScaledDf[etfticker]     = netGammaETF / marketCap
+    #Scaled by market cap, adjusted to same scale as index
+    netGammaAdjustedDf[indexticker] = (netGammaIndex / marketCap)
+    netGammaAdjustedDf[etfticker] = (netGammaETF / marketCap) / M**2
        
-    #Store returns
-    totalReturnsDf[ticker] = totalReturns
-    xsReturnsDf[ticker]    = xsReturns
- 
-    AggregateData.append(data)
-
-gammaChanges     = netGammaDf.diff()
-gammaChangesCorr = gammaChanges.iloc[1:, :].corr()
-
-
-#Correlation Matrices
-corrMatrixGamma = netGammaAdjustedDf.corr()
-corrMatrixReturns = xsReturnsDf.corr()
-
-plt.figure()
-sn.heatmap(corrMatrixGamma, annot = True)
-plt.title("Market Maker Net Gamma Correlation")
-
-plt.figure()
-sn.heatmap(corrMatrixReturns, annot = True)
-plt.title("Return Correlation")
-
-plt.figure()
-sn.heatmap(gammaChangesCorr, annot = True)
-plt.title("Changes in Net Gamma Correlation")
-
-totalGamma = netGammaAdjustedDf.to_numpy()
-totalGamma = np.sum(totalGamma, axis = 1)
-
+    #compute aggregate gamma
+    aggGammaDf[indexticker] = netGammaAdjustedDf[indexticker] + netGammaAdjustedDf[etfticker]
+    aggGammaDf[etfticker]   = netGammaAdjustedDf[indexticker] + netGammaAdjustedDf[etfticker]
+   
+    AggregateData.append(indexData)
+    AggregateData.append(etfData)
+    
 
 
 # #Set up Regressions
@@ -144,21 +144,22 @@ for j in np.arange(0, len(UnderlyingTicker)):
     name       = UnderlyingAssetName[j]
     data       = AggregateData[j]
     xsret      = xsReturnsDf.iloc[:, j].to_numpy()
-       
+    netGamma   = netGammaAdjustedDf.iloc[:, j].to_numpy()
     #Compute Independent Variable Time Series
     volIndex       = data[volticker].to_numpy()
     
     #Concatenate Independent variables to X matrix
-    X = np.concatenate((totalGamma.reshape(-1,1), volIndex.reshape(-1,1)), axis = 1)
+    X = np.concatenate((netGamma.reshape(-1,1), volIndex.reshape(-1,1)), axis = 1)
     
     
     #total gamma ex relevant as control variable
     netGammaAdjusted = netGammaAdjustedDf.to_numpy()
     netGamma             = netGammaAdjusted[:, j]
     netGammaExRelevant   = np.delete(netGammaAdjusted, j, axis = 1)
-    totalGammaExRelevant = np.sum(netGammaExRelevant, axis = 1)
-    
+    totalGammaExRelevant = np.sum(netGammaExRelevant, axis = 1)   
     X_ex = np.concatenate((netGamma.reshape(-1,1), totalGammaExRelevant.reshape(-1,1), volIndex.reshape(-1,1)), axis = 1)
+
+
 
     ####################################################
     ######### Standard Regression - Total Gamma #########    
@@ -173,10 +174,10 @@ for j in np.arange(0, len(UnderlyingTicker)):
     tvals     = np.round(reg.tvalues, decimals = 4)
     pvals     = np.round(reg.pvalues, decimals = 4)
     r_squared = np.round(reg.rsquared, decimals = 4)
-         
+    r_squared_adj = np.round(reg.rsquared_adj, decimals = 4)
        
     ### Result Print
-    legend = np.array(['$\Gamma^{MM}_{t - ' + str(lag) + '}$', " ", '$IV_{t-1}$', " ", 'Intercept', " ", '$R^2$' ])
+    legend = np.array(['$\Gamma^{MM}_{t - ' + str(lag) + ', tot}$', " ", '$IV_{t-1}$', " ", 'Intercept', " ", '$R^2$', '$R^2_{adj}$' ])
     
     sign_test = []
     for pval in pvals:
@@ -191,7 +192,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
                 
     results = np.array([ str(coefs[1]) + sign_test[1], "(" + str(tvals[1]) + ")", \
                          str(coefs[2]) + sign_test[2], "(" + str(tvals[2]) + ")", \
-                         str(coefs[0]) + sign_test[0], "(" + str(tvals[0]) + ")", r_squared])        
+                         str(coefs[0]) + sign_test[0], "(" + str(tvals[0]) + ")", r_squared, r_squared_adj])        
     
     resultsDf = pd.DataFrame()
     if j == 0:
@@ -205,56 +206,5 @@ for j in np.arange(0, len(UnderlyingTicker)):
         allresDf = pd.concat((allresDf, resultsDf), axis = 1)
 
 
-    ######### Regression Total Gamma Ex Relevant as Control #########    
-    y      = np.abs(xsret[lag:])
-    nObs   = np.size(y)
-   
-    X_ex      = X_ex[0:-lag, :]       #Lag matrix accordingly 
-    X_ex      = sm.add_constant(X_ex) #add constant
-
-    reg       = sm.OLS(y, X_ex).fit(cov_type = "HAC", cov_kwds = {'maxlags':0})
-    coefs_ex     = np.round(reg.params*100, decimals = 4) #Multiply coefs by 100 to get in bps format
-    tvals_ex     = np.round(reg.tvalues, decimals = 4)
-    pvals_ex     = np.round(reg.pvalues, decimals = 4)
-    r_squared_ex = np.round(reg.rsquared, decimals = 4)
-         
-       
-    ### Result Print
-    legend_ex = np.array(['$\Gamma^{MM}_{t - ' + str(lag) + '}$', " ", '$\Gamma^{MM}_{t - ' + str(lag) + ', tot_-}$', " ", '$IV_{t-1}$', " ", 'Intercept', " ", '$R^2$' ])
-    
-    sign_test_ex = []
-    for pval in pvals_ex:
-        if pval < 0.01:
-            sign_test_ex.append("***")
-        elif pval < 0.05:
-            sign_test_ex.append("**")
-        elif pval < 0.1:
-            sign_test_ex.append("*")
-        else:
-            sign_test_ex.append("")
-                
-    results_ex = np.array([ str(coefs_ex[1]) + sign_test_ex[1], "(" + str(tvals_ex[1]) + ")", \
-                         str(coefs_ex[2]) + sign_test_ex[2], "(" + str(tvals_ex[2]) + ")", \
-                         str(coefs_ex[3]) + sign_test_ex[3], "(" + str(tvals_ex[3]) + ")", \
-                         str(coefs_ex[0]) + sign_test_ex[0], "(" + str(tvals_ex[0]) + ")", r_squared_ex])        
-    
-    resultsDf_ex = pd.DataFrame()
-    if j == 0:
-        resultsDf_ex["Lag = " + str(lag) + " day"] = legend_ex
-        resultsDf_ex[ticker] = results_ex
-        allresDf_ex = resultsDf_ex
-    else:
-        resultsDf_ex[ticker] = results_ex
-     
-    if j > 0:
-        allresDf_ex = pd.concat((allresDf_ex, resultsDf_ex), axis = 1)
-
-
- 
-
-
-
 print(allresDf.to_latex(index=False, escape = False)) 
-print(allresDf_ex.to_latex(index=False, escape = False)) 
-
 

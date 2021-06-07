@@ -14,9 +14,9 @@ import matplotlib.pyplot as plt
 import sys
 
 ### SET WHICH ASSET TO BE IMPORTED #######################################################
-UnderlyingTicker      = "QQQ US Equity"
-UnderlyingTickerShort = "QQQ"
-loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/"
+UnderlyingTicker      = "SPX Index"
+UnderlyingTickerShort = "SPX"
+loadloc               = "../Data/"
 equity_index          = False #Toggle equity index for total return download
 ##########################################################################################
 
@@ -249,7 +249,7 @@ OptionDataClean    = pd.DataFrame.from_records(OptionDataTr, columns = cols)
     
 
 #Save as csv file
-loc = "C:/Users/ekblo/Documents/MScQf/Masters Thesis/Data/CleanData/"
+loc = "../Data/CleanData/"
 OptionDataClean.to_csv(path_or_buf   = loc + UnderlyingTickerShort + 'OptionDataClean.csv', index = False)
 UnderlyingData.to_csv(path_or_buf    = loc + UnderlyingTickerShort + 'UnderlyingData.csv', index = False)
 
@@ -272,10 +272,7 @@ print (toc-tic)
 
 
 
-
-
-
-
+#Save data
 #OptionDataClean.to_csv(path_or_buf = r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXOptionDataClean.csv', index = False)
 #OptionDataToTrade.to_csv(path_or_buf = r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXOptionDataToTrade.csv', index = False)
 #UnderlyingData.to_csv(path_or_buf = r'C:\Users\ekblo\Documents\MScQF\Masters Thesis\Data\CleanData\SPXUnderlyingData.csv', index = False)

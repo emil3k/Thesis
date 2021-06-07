@@ -25,9 +25,12 @@ UnderlyingTicker      = "SPX"
 UnderlyingETFName     = "SPY US Equity"
 UnderlyingETFTicker   = "SPY"
 
+ETFMultiplier = 10
 futuresOpenInterest = 2749010
 
-loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
+#loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
+
+loadloc               = "../Data/AggregateData/" #Jump out of script folder and look in data folder
 prefColor             = '#0504aa'
 load_etf = True
 ##########################################################################################
@@ -118,8 +121,6 @@ putGammaIndex  = indexData["gamma_put"].to_numpy() / marketCapIndex
 callGammaIndex = indexData["gamma_call"].to_numpy() / marketCapIndex
 putGammaETF    = ETFData["gamma_put"].to_numpy() / ((ETFMultiplier**2)*marketCapIndex[-len(marketCapETF):])
 callGammaETF   = ETFData["gamma_call"].to_numpy() / ((ETFMultiplier**2)*marketCapIndex[-len(marketCapETF):])
-
-
 
 
 
@@ -357,8 +358,6 @@ dollarVolumeETF          = ETFData[UnderlyingETFTicker + " Dollar Volume"].to_nu
 
 
 #Combine volume data for index and etf
-
-
 #Match size
 volumeETFLong      = np.zeros((len(volumeIndex),))
 volumeETFLong[0:]  = np.nan
@@ -423,26 +422,25 @@ OpenInterestDfComb[UnderlyingTicker]    = np.array(["", meanOI_index, medianOI_i
 OpenInterestDfComb[UnderlyingETFTicker] = np.array(["", meanOI_ETF, medianOI_ETF, maxOI_ETF, minOI_ETF, "", meanOI_ETF_IE, medianOI_ETF_IE, maxOI_ETF_IE, minOI_ETF_IE])
 
 
-#Save dataframe to excel
-saveloc = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/OpenInterestTables/"
-OpenInterestDfComb.to_csv(path_or_buf = saveloc + UnderlyingTicker + "OpenInterestTable.csv" , index = False)
+# #Save dataframe to excel
+# saveloc = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/OpenInterestTables/"
+# OpenInterestDfComb.to_csv(path_or_buf = saveloc + UnderlyingTicker + "OpenInterestTable.csv" , index = False)
 
-sys.exit()
-#Reload excels and create latex table
-AssetList = ["SPX", "NDX", "RUT"]
-combDf = pd.DataFrame()
-combDf["In Millions"] =  np.array(["Open Interest (Raw)", "Average", "Median", "Max", "Min", "Open Interest (IEU)", "Average", "Median", "Max", "Min"])
-for i in np.arange(0, 3):
-    t  = AssetList[i]        
-    df = pd.read_csv(saveloc + t + "OpenInterestTable.csv")
-    combDf = pd.concat((combDf, df), axis = 1)
+
+# #Reload excels and create latex table
+# AssetList = ["SPX", "NDX", "RUT"]
+# combDf = pd.DataFrame()
+# combDf["In Millions"] =  np.array(["Open Interest (Raw)", "Average", "Median", "Max", "Min", "Open Interest (IEU)", "Average", "Median", "Max", "Min"])
+# for i in np.arange(0, 3):
+#     t  = AssetList[i]        
+#     df = pd.read_csv(saveloc + t + "OpenInterestTable.csv")
+#     combDf = pd.concat((combDf, df), axis = 1)
     
-
-#Print to latex
-print(OpenInterestDfRaw.to_latex(index=False))
-print(OpenInterestDfIE.to_latex(index=False))
-print(OpenInterestDfComb.to_latex(index=False))
-print(combDf.to_latex(index=False))
+# #Print to latex
+# print(OpenInterestDfRaw.to_latex(index=False))
+# print(OpenInterestDfIE.to_latex(index=False))
+# print(OpenInterestDfComb.to_latex(index=False))
+# print(combDf.to_latex(index=False))
 
 
 #Smooth data for nicer plots
@@ -452,6 +450,7 @@ volumeDataToSmooth = np.concatenate((volumeIndex.reshape(-1,1), volumeETFLong.re
 openInterestDataToSmooth = np.concatenate((openInterestIndex.reshape(-1,1), openInterestETFLong.reshape(-1,1), deltaAdjOpenInterestIndex.reshape(-1,1), deltaAdjOpenInterestETFLong.reshape(-1,1)), axis = 1)
 [smoothOpenInterestData, smoothOpenInterestDates] = gf.smoothData(openInterestDataToSmooth, dates4figIndex, lookback = 100)
 
+#Compute futures point
 futuresOpenInterestVec = np.zeros((len(openInterestIndex), ))
 futuresOpenInterestVec[0:] = np.nan
 futuresOpenInterestVec[-1] = futuresOpenInterest
@@ -493,7 +492,6 @@ plt.legend()
 
 
 ### Open Interest Plots ###
-
 #Smoothed open interest
 plt.figure()
 plt.plot(smoothOpenInterestDates, smoothOpenInterestData[:, 0] / 1000000, color = prefColor, alpha = 0.8, label = UnderlyingTicker)
@@ -521,6 +519,7 @@ plt.title("Aggregate Open Interest S&P 500 Instruments")
 plt.ylabel("Open Interst in Log Index Equivalent Units")
 plt.legend()
 
+#Ratio of open interest
 plt.figure()
 plt.plot(dates4figETF, openInterestIndex[-len(openInterestETFShort):] / openInterestETFShort , color = prefColor, alpha = 0.8, label = UnderlyingTicker + " Options")
 #plt.plot(dates4figIndex, np.log(openInterestETFLong), color = "red", alpha = 0.8, label = UnderlyingETFTicker + " Options")
@@ -531,21 +530,6 @@ plt.ylabel("Open Interst Ratio Index Equivalent Units")
 
 
 
-
-
-#smoothCols = np.array(["aggOpenInterest", "netOpenInterest", "deltaAdjOpenInterest",\
-#                        "deltaAdjNetOpenInterest", "aggVolum", "deltaAdjVolume", UnderlyingTicker + " Volume",\
-#                            UnderlyingTicker + " Dollar Volume"])
-
-#dataToSmooth = indexData[smoothCols].to_numpy()
-#dataToSmooth = np.concatenate((dataToSmooth, deltaAdjNetOpenInterest_scaled.reshape(-1,1)), axis = 1) #add deltaadjusted open interest scaled
-
-#lookback = 100
-#[aggregateSmooth, smoothDates] = smoothData(dataToSmooth, indexDates, lookback)
-
-
-  
-   
 
 ############# REVERSALS #################
 
@@ -570,8 +554,13 @@ def computeReversalBars(netGamma, Returns, lag = 1):
     return bars
 
 lag = 1
-CondReversalBarsIndex  = computeReversalBars(netGammaIndex_scaled, IndexXsReturns, lag = lag)
-CondReversalBarsETF    = computeReversalBars(netGammaETF_scaled, ETFXsReturns, lag = lag)
+
+totalGamma = netGammaIndex_scaled[-len(netGammaETF):] + netGammaETF_scaled / (ETFMultiplier**2)
+IndexXsReturns = IndexXsReturns[-len(ETFXsReturns):]
+IndexXsReturns[0] = 0
+
+CondReversalBarsIndex  = computeReversalBars(totalGamma, IndexXsReturns, lag = lag)
+CondReversalBarsETF    = computeReversalBars(totalGamma, ETFXsReturns, lag = lag)
 ticks = np.array(["Neg-Neg", "Neg-Pos", "Pos-Neg", "Pos-Pos"])
 
 
@@ -594,6 +583,7 @@ afterPosSameDayETF     = nextDayReturnsETF[posSameDayETF]   #conditional mean
 UncondReversalBarsETF  = np.array([np.mean(afterNegSameDayETF), np.mean(afterPosSameDayETF), np.mean(afterNegSameDayETF), np.mean(afterPosSameDayETF)])
 
 
+
 # Unconditional
 meanXsReturnIndex   = np.mean(IndexXsReturns[lag:])
 meanXsReturnETF     = np.mean(ETFXsReturns[lag:])
@@ -608,18 +598,6 @@ r1 = np.arange(len(CondReversalBarsIndex))
 r2 = [x + barWidth for x in r1]
 r3 = [x + barWidth for x in r2]
 
-
-#Bar Plot Index alternative color
-plt.figure()
-plt.bar(r1, CondReversalBarsIndex*100,   width = barWidth, color = prefColor, alpha = 0.8, label = "Conditional on gamma and return")  
-plt.bar(r2, UncondReversalBarsIndex*100, width = barWidth, color = "red", alpha = 0.8,  label = "Conditional on return")
-plt.bar(r3, MeanReturnBarsIndex*100,     width = barWidth, color = "silver",  alpha = 0.8, label = "Unconditonal")
-plt.title("Avg. Returns By Prev. Day Gamma and Return, " + UnderlyingTicker)
-plt.xlabel("Previous Day Net Gamma and Return Combinations" + " (" + periodLabelIndex + ")")
-plt.ylabel("Average Daily Excess Return (%)")
-plt.xticks(r1 + barWidth/2, ticks)
-plt.legend()
-plt.show()
 
 
 #Bar Plot Index
@@ -656,22 +634,22 @@ fig.suptitle('Return Reversals for ' + UnderlyingTicker + ' (left) and ' + Under
 ax1.bar(r1, (CondReversalBarsIndex - MeanReturnBarsIndex)*100, width = barWidth, color = prefColor, alpha = 0.8, label = "Cond. on gamma and return")  
 ax1.bar(r2, (UncondReversalBarsIndex - MeanReturnBarsIndex)*100, width = barWidth, color = "silver", alpha = 0.8,  label = "Cond. on return")
 ax1.set_ylabel("Avg Cond. Return - Sample Average (%)")
-ax1.set_xlabel("Previous Day Net Gamma and Return Combinations" + " (" + periodLabelIndex + ")")
+ax1.set_xlabel("Previous Day Net Gamma and Return Combinations" + " (" + periodLabelETF + ")")
 ax1.set_xticks(r1 + barWidth/2, minor = False)
 ax1.set_xticklabels(ticks)
 ax1.axhline(y=0, color='k', linestyle='-', linewidth = 0.5)
-ax1.set_ylim([-0.07, 0.10])
+ax1.set_ylim([-0.06, 0.08])
 ax1.legend()
 
 ax2.bar(r1, (CondReversalBarsETF - MeanReturnBarsETF)*100,   width = barWidth, color = "red", alpha = 0.8, label = "Cond. on gamma and return")  
 ax2.bar(r2, (UncondReversalBarsETF - MeanReturnBarsETF) *100, width = barWidth, color = "silver", alpha = 0.8,  label = "Cond. on return")
-ax2.set_ylim([-0.07, 0.10])
+ax2.set_ylim([-0.06, 0.08])
 ax2.axhline(y=0, color='k', linestyle='-', linewidth = 0.5)
 #ax2.set_title(UnderlyingETFTicker)
 ax2.set_xticks(r1 + barWidth/2, minor = False)
 ax2.set_xticklabels(ticks)
 ax2.legend()
-#fig.legend()
+
 
 
 ############################
@@ -693,76 +671,6 @@ plt.legend()
 plt.show()
 
 
-
-
-
-
-
-
-
-sys.exit()
-
-#Conditional Autocorrelation
-nDays  = np.size(netGamma)
-streak = 0
-negGammaStreaks = []
-negGammaReturns = np.zeros((nDays, nDays))
-j = 0 
-for i in np.arange(0, nDays):
-   if netGamma[i] < 0: #Start new streak
-      negGammaReturns[i, j] = Returns[i] 
-      streak = streak + 1
-
-   elif streak > 0:
-      negGammaStreaks.append(streak) #save streak
-      negGammaReturns[i, j] = Returns[i] #Save return day after streak ends
-      streak = 0 #reset streak
-      j = j + 1 # jump to next column
-
-
-#Compute conditional autocorrelation
-negGammaAutocorr = []
-for j in np.arange(0, nDays):
-    col  = negGammaReturns[:, j] #grab column
-    ret  = col[np.nonzero(col)]
-    if len(ret) > 2:
-        corr = np.corrcoef(ret[0:-1],ret[1:])[1, 0] #compute correlation coefficient
-        negGammaAutocorr.append(corr) #save
-
-#Finalize bar plot
-negGammaAutocorr    = np.transpose(np.array([negGammaAutocorr]))
-averageCondAutocorr = np.mean(negGammaAutocorr)
-uncondAutocorr      = np.corrcoef(Returns[0:-1], Returns[1:])[1,0]
-
-bars = np.array([averageCondAutocorr, uncondAutocorr])
-x    = np.arange(len(bars))
-ticks = np.array(["Cond. on Negative Gamma", "Unconditional"])
-plt.figure()
-plt.bar(x, bars, width = 0.7 , color = prefColor)  
-plt.title("Autocorrelation of Returns" + " (" + periodLabel + ")")
-plt.ylabel("Average Daily Return")
-plt.xticks(x, ticks)
-plt.legend()
-plt.show()
-
-
-
-##########################################
-### Gamma Correlation Between Index and ETF
-GammaCorrelation = np.array([0.74, 0.35, 0.42])
-Pairs = np.array(["SPX/SPY", "NDX/QQQ", "RUT/IWM"])
-nPairs = len(Pairs)
-
-#Correlation plot
-x     = np.arange(0, nPairs)
-width = 0.5
-plt.figure(figsize = (10, 4))
-plt.bar(x, GammaCorrelation, width = width, color = '#0504aa', alpha = 0.8)  
-plt.title("Net Gamma Correlation between Index and ETF")
-plt.xticks(x, Pairs, rotation='horizontal')
-plt.ylabel("Correlation Coefficient")
-plt.legend()
-plt.show()
 
 
 

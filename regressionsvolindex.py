@@ -36,7 +36,7 @@ IsEquityIndex        = [True, False, True, False, True, False, False]
 #UnderlyingTicker      = ["SPX"]
 #IsEquityIndex         = [True]
 
-loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
+loadloc               = "../Data/AggregateData/"
 prefColor             = '#0504aa'
 ##########################################################################################
 
@@ -47,7 +47,15 @@ for ticker in UnderlyingTicker:
     data  = pd.read_csv(loadloc + ticker + "AggregateData.csv")
     AggregateData.append(data)
 
-
+def computeRfDaily(data):
+    dates            = data["Dates"].to_numpy()
+    dates4fig        = pd.to_datetime(dates, format = '%Y%m%d')
+    daycount         = bt.dayCount(dates4fig)
+    
+    Rf               = data["LIBOR"].to_numpy() / 100
+    RfDaily          = np.zeros((np.size(Rf, 0), ))
+    RfDaily[1:]      = Rf[0:-1] * daycount[1:]/360 
+    return RfDaily
 
 #Compute returns and adjusted gamma
 nAssets = len(UnderlyingTicker)
@@ -57,18 +65,9 @@ for i in np.arange(0, nAssets):
     data   = AggregateData[i]
     ticker = UnderlyingTicker[i]
     eqIndexFlag  = IsEquityIndex[i]
-    rf     = data["LIBOR"].to_numpy()
+    rf = computeRfDaily(data) 
     
-    def computeRfDaily(data):
-        dates            = data["Dates"].to_numpy()
-        dates4fig        = pd.to_datetime(dates, format = '%Y%m%d')
-        daycount         = bt.dayCount(dates4fig)
-        
-        Rf               = data["LIBOR"].to_numpy() / 100
-        RfDaily          = np.zeros((np.size(Rf, 0), ))
-        RfDaily[1:]      = Rf[0:-1] * daycount[1:]/360 
-        return RfDaily
-    
+
     if ticker  != "VIX":
         #Use Total Return Index for index, and normal price for ETF
         if eqIndexFlag == True:
@@ -76,7 +75,6 @@ for i in np.arange(0, nAssets):
         else:
             price    = data[ticker].to_numpy()
            
-        rf       = computeRfDaily(data)    
         #Compute returns 
         ret   = price[1:] / price[0:-1] - 1 
         ret   = np.concatenate((np.zeros((1, )), ret), axis = 0)
@@ -89,8 +87,7 @@ for i in np.arange(0, nAssets):
     #Use futures for VIX Returns
     else:
        frontPrices    = data["frontPrices"].to_numpy()
-       rf = computeRfDaily(data)
-       
+              
        frontXsReturns = frontPrices[1:] / frontPrices[0:-1] - 1
        frontXsReturns =  np.concatenate((np.zeros((1, )), frontXsReturns), axis = 0)
        frontTotalReturns = frontXsReturns + rf
@@ -128,17 +125,17 @@ def plotResiduals(residuals, lag = None, ticker = None, color = '#0504aa', histt
     
 
 # #Set up Regressions
-#lagList = [1, 2, 5, 10]
+
 lag     = 2
 hist    = False
 scatter = False
 ETFMultiplierList = np.array([10,40,10])
 for j in np.arange(0, len(UnderlyingTicker)):
-    ticker   = UnderlyingTicker[j]
+    ticker    = UnderlyingTicker[j]
     volticker = volIndexTicker[j]
-    name     = UnderlyingAssetName[j]
-    data     = AggregateData[j]
-    xsret    = XsReturns[j]
+    name      = UnderlyingAssetName[j]
+    data      = AggregateData[j]
+    xsret     = XsReturns[j]
    
     isETF    = np.in1d(ETFTicker, ticker)
     
@@ -164,22 +161,9 @@ for j in np.arange(0, len(UnderlyingTicker)):
     #plt.plot(np.ones((len(ILLIQ),))*ILLIQMedian, "--r")
     #plt.plot(np.ones((len(ILLIQ),))*ILLIQMean, "--b")
     
-    #Net Gamma Measures
-    netGamma_norm   = (netGamma - np.mean(netGamma)) / np.std(netGamma)
-    
-    #Use barbon measure for VIX
-    if ticker != "VIX":
-        netGamma_scaled = netGamma / marketCap
-        netGamma_barbon = netGamma / MAdollarVolume
-    else:
-        netGamma_scaled = netGamma / MAdollarVolume
-        
+    netGamma_scaled = netGamma / marketCap   
+         
   
-   
-    #Standardize meaesure
-    #netGamma_scaled = (netGamma_scaled - np.mean(netGamma_scaled)) / np.std(netGamma_scaled)
-    #netGamma_scaled = netGamma_scaled / np.std(netGamma_scaled)
-     
     #Trim to match length of vol index
     volIndex        = volIndex[np.isfinite(volIndex)]
     netGamma_scaled = netGamma_scaled[-len(volIndex):]
@@ -208,14 +192,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
     X_control = np.concatenate((X[2:], X_control), axis = 1)
     y_control = np.abs(xsret[2:])
     
-    #Feature correlation
-    IndependentVarDf = pd.DataFrame.from_records(X_control, columns = [r'$netGamma_t%.5f$', r'$IVOL_t%.5f$', r'$IVOL_{t-1}%.5f$', r'$IVOL_{t-2}%.5f$', r'$|R_t|%.5f$', r'$|R_{t-1}|%.5f$', r'$|R_{t-2}|%.5f$' ])
-    corrMatrix       = IndependentVarDf.corr()
-    
-    plt.figure()
-    sn.heatmap(corrMatrix, annot = True)
-    plt.title("Independent Variable Correlation, " + ticker)
-    
+   
     ######## Illiquidity regression ###############
     negNetGammaDummy   = (netGamma_scaled < 0)
     IlliquidDummy      = (ILLIQ > ILLIQMedian)
@@ -223,21 +200,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
     
     X_liq = np.concatenate((negNetGammaDummy.reshape(-1,1), IlliquidDummy.reshape(-1,1), InteractionDummy.reshape(-1,1)), axis = 1)
     
-    ######## Reversal Regression ####################
-    #Dummies
-    negNetGammaDummy = (netGamma_scaled < 0)
-    posNetGammaDummy = (netGamma_scaled > 0)
-    negReturnDummy   = (xsret < 0)
-    posReturnDummy   = (xsret > 0)
-    
-    #Interactions
-    negneg = negNetGammaDummy * negReturnDummy
-    negpos = negNetGammaDummy * posReturnDummy
-    posneg = posNetGammaDummy * negReturnDummy
-    pospos = posNetGammaDummy * posReturnDummy
-    
-    X_rev = np.concatenate((negneg.reshape(-1,1), negpos.reshape(-1,1), posneg.reshape(-1,1), pospos.reshape(-1,1)), axis = 1)
-    
+  
     
     ####################################################
     ######### Fit regressions and store result #########
@@ -255,12 +218,10 @@ for j in np.arange(0, len(UnderlyingTicker)):
     tvals     = np.round(reg.tvalues, decimals = 4)
     pvals     = np.round(reg.pvalues, decimals = 4)
     r_squared = np.round(reg.rsquared, decimals = 4)
-        
-        
-        
+       
 
     ### Result Print
-    legend = np.array(['$\Gamma^{MM}_{t - ' + str(lag) + '}$', " ", '$IV_{t-1}$', " ", 'Intercept', " ", '$R^2$' ])
+    legend = np.array(['$\Gamma^{MM}_{t - ' + str(lag) + '}$', " ", '$IV_{t-' + str(lag) +'}$', " ", 'Intercept', " ", '$R^2$' ])
     
     sign_test = []
     for pval in pvals:
@@ -304,8 +265,8 @@ for j in np.arange(0, len(UnderlyingTicker)):
     r_squared_control = np.round(reg_control.rsquared, decimals = 4)
         
     ### Alternative Result Print
-    legend_control = np.array(['$\Gamma^{MM}_{t-' + str(lag) + '}$', " ", '$IV_{t-1}$', " ", '$IV_{t-2}$', " ", '$IV_{t-3}$', " ", \
-                       '$|R_{t-1}|$', " ", '$|R_{t-2}|$', " ", '$|R_{t-3}|$', " ",  'Intercept', " ", '$R^2$' ])
+    legend_control = np.array(['$\Gamma^{MM}_{t-' + str(lag) + '}$', " ", '$IV_{t-' + str(lag) +'}$', " ", '$IV_{t-' + str(lag + 1) +'}$', " ", '$IV_{t-' + str(lag + 2) +'}$', " ", \
+                       '$|R_{t-' + str(lag) +'}|$', " ", '$|R_{t-' + str(lag + 1) +'}|$', " ", '$|R_{t-' + str(lag) +'}|$', " ",  'Intercept', " ", '$R^2$' ])
         
     sign_test_control = []
     for pval in pvals_control:
@@ -386,55 +347,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
     if j > 0 and j < len(UnderlyingTicker)-1:
         allres_liqDf = pd.concat((allres_liqDf, results_liqDf), axis = 1)
    
-    ########################################
-    ######### Reversal Regression #########
-   
-    y_rev  = xsret[lag:]
-    X_rev  = sm.add_constant(X_rev*1)
-    X_rev  = X_rev[0:-lag]
-    
-    reg_rev       = sm.OLS(y_rev, X_rev).fit()
-    coefs_rev     = np.round(reg_rev.params*100, decimals = 3)   #Multiply net gamma coef by 100 to get bps format
-    tvals_rev     = np.round(reg_rev.tvalues, decimals = 3)
-    pvals_rev     = np.round(reg_rev.pvalues, decimals = 3)
-    r_squared_rev = np.round(reg_rev.rsquared, decimals = 3)
-    
-    ### Alternative Result Print
-    legend_rev = np.array(['Neg-Neg', " ", 'Neg-Pos', " ", 'Pos-Neg', " ",'Pos-Pos', " ", 'Intercept', " ", '$R^2$' ])
-        
-    sign_test_rev = []
-    for pval in pvals_rev:
-        if pval < 0.01:
-            sign_test_rev.append("***")
-        elif pval < 0.05:
-            sign_test_rev.append("**")
-        elif pval < 0.1:
-            sign_test_rev.append("*")
-        else:
-            sign_test_rev.append("")
-
-    results_rev = np.array([ str(coefs_rev[1]) + sign_test_rev[1], "(" + str(tvals_rev[1]) + ")", \
-                             str(coefs_rev[2]) + sign_test_rev[2], "(" + str(tvals_rev[2]) + ")", \
-                             str(coefs_rev[3]) + sign_test_rev[3], "(" + str(tvals_rev[3]) + ")", \
-                             str(coefs_rev[4]) + sign_test_rev[4], "(" + str(tvals_rev[4]) + ")", \
-                                 str(coefs_rev[0]) + sign_test_rev[0], "(" + str(tvals_rev[0]) + ")", r_squared])        
-    #Store in DataFrame      
-    results_revDf = pd.DataFrame()
-    if j == 0:
-        results_revDf["Lag = " + str(lag) + " day"] = legend_rev
-        results_revDf[ticker] = results_rev
-        allres_revDf = results_revDf
-    elif j < len(UnderlyingTicker)-1:
-        results_revDf[ticker] = results_rev
-           
-    if j > 0 and j < len(UnderlyingTicker)-1:
-        allres_revDf = pd.concat((allres_revDf, results_revDf), axis = 1)
-    
-   
-    
-   
-    
-    
+     
     
     
     if scatter == True:
@@ -479,12 +392,4 @@ for j in np.arange(0, len(UnderlyingTicker)):
 print(allresDf.to_latex(index=False, escape = False)) 
 print(allres_controlDf.to_latex(index=False, escape = False))     
 print(allres_liqDf.to_latex(index=False, escape = False))      
-print(allres_revDf.to_latex(index=False, escape = False))   
-
-# X   = netGamma[0:-lag]
-# X   = sm.add_constant(X)
-# y   = np.abs(Returns[lag:])
-
-# regression = sm.OLS(y, X).fit()
-# print(regression.summary())
 

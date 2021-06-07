@@ -34,7 +34,7 @@ IsEquityIndex        = [True, False, True, False, True, False, False]
 #UnderlyingTicker      = ["SPX"]
 #IsEquityIndex         = [True]
 
-loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
+loadloc               = "../Data/AggregateData/"
 prefColor             = '#0504aa'
 ##########################################################################################
 

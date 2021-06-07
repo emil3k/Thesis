@@ -34,7 +34,7 @@ IsEquityIndex        = [True, False, True, False, True, False, False]
 #UnderlyingTicker      = ["SPX"]
 #IsEquityIndex         = [True]
 
-loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
+loadloc               = "../Data/AggregateData/"
 prefColor             = '#0504aa'
 ##########################################################################################
 
@@ -48,10 +48,16 @@ for ticker in UnderlyingTicker:
     endDate   = 20200101
     data  = bt.trimToDates(data, data["Dates"], startDate, endDate)
     AggregateData.append(data)
-
-
-
-
+    
+def computeRfDaily(data):
+       dates            = data["Dates"].to_numpy()
+       dates4fig        = pd.to_datetime(dates, format = '%Y%m%d')
+       daycount         = bt.dayCount(dates4fig)
+       
+       Rf               = data["LIBOR"].to_numpy() / 100
+       RfDaily          = np.zeros((np.size(Rf, 0), ))
+       RfDaily[1:]      = Rf[0:-1] * daycount[1:]/360 
+       return RfDaily
 
 #Compute returns and adjusted gamma
 nAssets = len(UnderlyingTicker)
@@ -61,17 +67,7 @@ for i in np.arange(0, nAssets):
     data   = AggregateData[i]
     ticker = UnderlyingTicker[i]
     eqIndexFlag  = IsEquityIndex[i]
-    rf     = data["LIBOR"].to_numpy()
-    
-    def computeRfDaily(data):
-        dates            = data["Dates"].to_numpy()
-        dates4fig        = pd.to_datetime(dates, format = '%Y%m%d')
-        daycount         = bt.dayCount(dates4fig)
-        
-        Rf               = data["LIBOR"].to_numpy() / 100
-        RfDaily          = np.zeros((np.size(Rf, 0), ))
-        RfDaily[1:]      = Rf[0:-1] * daycount[1:]/360 
-        return RfDaily
+    rf       = computeRfDaily(data)    
     
     if ticker  != "VIX":
         #Use Total Return Index for index, and normal price for ETF
@@ -80,7 +76,6 @@ for i in np.arange(0, nAssets):
         else:
             price    = data[ticker].to_numpy()
            
-        rf       = computeRfDaily(data)    
         #Compute returns 
         ret   = price[1:] / price[0:-1] - 1 
         ret   = np.concatenate((np.zeros((1, )), ret), axis = 0)
@@ -93,8 +88,7 @@ for i in np.arange(0, nAssets):
     #Use futures for VIX Returns
     else:
        frontPrices    = data["frontPrices"].to_numpy()
-       rf = computeRfDaily(data)
-       
+             
        frontXsReturns = frontPrices[1:] / frontPrices[0:-1] - 1
        frontXsReturns =  np.concatenate((np.zeros((1, )), frontXsReturns), axis = 0)
        frontTotalReturns = frontXsReturns + rf
@@ -156,26 +150,12 @@ for j in np.arange(0, len(UnderlyingTicker)):
     
     #Compute Independent Variable Time Series
     #Grab necessary data
-    netGamma       = data["netGamma"].to_numpy()
-    MAdollarVolume = data["MADollarVolume"].to_numpy() 
-    ILLIQ          = data["ILLIQ_monthly"].to_numpy()
-    ILLIQMedian    = np.median(ILLIQ)    
-    ILLIQMean      = np.mean(ILLIQ)  
+    netGamma       = data["netGamma"].to_numpy() 
     IVOL           = data["IVOL"].to_numpy()*100
-    #plt.plot(ILLIQ)
-    #plt.plot(np.ones((len(ILLIQ),))*ILLIQMedian, "--r")
-    #plt.plot(np.ones((len(ILLIQ),))*ILLIQMean, "--b")
     
-    #Net Gamma Measures
-    netGamma_norm   = (netGamma - np.mean(netGamma)) / np.std(netGamma)
     
-    #Use barbon measure for VIX
-    if ticker != "VIX":
-        netGamma_scaled = netGamma / marketCap
-        netGamma_barbon = netGamma / MAdollarVolume
-    else:
-        netGamma_scaled = netGamma / marketCap
-        
+    netGamma_scaled = netGamma / marketCap
+     
   
     #Separate data by month
     dates = data["Dates"].to_numpy() #grab dates
@@ -195,14 +175,15 @@ for j in np.arange(0, len(UnderlyingTicker)):
     #run monthly reversal regressions and store monthly average gamma
     nMonths         = len(returnsByMonth)
     reversalCoefs   = np.zeros((nMonths,))
-    avgMonthlyGamma = np.zeros((nMonths,))
+    avgMonthlyGammaVec = np.zeros((nMonths,))
     
     for i in np.arange(0, nMonths):
         dailyXsReturns = returnsByMonth[i]
         dailyGamma     = gammaByMonth[i]
-        
-        avgMonthlyGamma[i] = np.mean(dailyGamma) 
-        
+              
+        avgMonthlyGamma = np.mean(dailyGamma) 
+        avgMonthlyGammaVec[i] = avgMonthlyGamma
+  
         #Set up regression
         y = np.abs(dailyXsReturns[lag:])
         X = np.abs(dailyXsReturns[0:-lag])    
@@ -212,10 +193,9 @@ for j in np.arange(0, len(UnderlyingTicker)):
         reversalCoefs[i] =  reg.params[1] #Store coefs
         
     
-        
     #run regression of reversal coefficients on monthly average gamma
     y_rev = reversalCoefs
-    X_rev = avgMonthlyGamma
+    X_rev = avgMonthlyGammaVec
     X_rev = sm.add_constant(X_rev)    
     
     reg_rev = sm.OLS(y_rev, X_rev).fit(cov_type = "HAC", cov_kwds = {'maxlags':0})
@@ -264,8 +244,7 @@ for j in np.arange(0, len(UnderlyingTicker)):
 
    
   
-    
-    
+   
     if scatter == True:
         #x        = np.linspace(np.min(X[:, 1]), np.max(X[:, 1]), np.size(X[:, 1]))
         #reg_line = coefs[0] + coefs[1] * x #+ coefs[2]*x**2
@@ -307,5 +286,5 @@ for j in np.arange(0, len(UnderlyingTicker)):
 #Print To Latex
 print(allresDf.to_latex(index=False, escape = False)) 
 
-plt.plot(avgMonthlyGamma)
+plt.plot(avgMonthlyGammaVec)
 

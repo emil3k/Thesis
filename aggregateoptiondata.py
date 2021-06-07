@@ -16,7 +16,7 @@ import sys
 UnderlyingAssetName   = "SPX Index"
 UnderlyingTicker      = "SPX"
 VolIndexTicker        = "SPX Index"
-loadloc               = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/CleanData/"
+loadloc               = "../Data/CleanData/"
 equity_index          = False
 ##########################################################################################
 
@@ -26,7 +26,7 @@ UnderlyingData    = pd.read_csv(loadloc + UnderlyingTicker + "UnderlyingData.csv
 
 
 #Risk free rate
-Rf           = pd.read_excel("C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/SpotData/SpotData.xlsx", sheet_name = "Rf")
+Rf           = pd.read_excel("../Data/SpotData/SpotData.xlsx", sheet_name = "Rf")
 RfDates      = Rf["Dates"].to_numpy()
 RfDates      = pd.to_datetime(RfDates, format = "%Y-%m-%d")
 RfDates      = bt.yyyymmdd(RfDates)
@@ -326,7 +326,7 @@ aggregateDf  = aggregateDf.iloc[lookback:, :] #Kill lookback period
 
 sys.exit()
 ## EXPORT DATA TO EXCEL ##
-saveloc = "C:/Users/ekblo/Documents/MScQF/Masters Thesis/Data/AggregateData/"
+saveloc = "../Data/AggregateData/"
 aggregateDf.to_csv(path_or_buf = saveloc + UnderlyingTicker + "AggregateData.csv" , index = False)
 
 
